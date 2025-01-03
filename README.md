@@ -1,0 +1,1 @@
+#### for windows: python tools\fancy.py -cmd "python sunfish.py"
