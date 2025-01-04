@@ -1,20 +1,22 @@
 from dataclasses import dataclass
-from typing import List, Set, Dict, Optional
-import chess
+from typing import List, Set, TYPE_CHECKING
 
 from chess_engine.sunfish_wrapper import SunfishEngine
-from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig, EmotionalState
+from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig
+
+if TYPE_CHECKING:
+    import chess
 
 
 @dataclass
 class TacticalOpportunity:
     """Represents a tactical opportunity like a fork or discovered attack"""
-    type: str                          # 'fork', 'discovered_attack', etc.
-    target_squares: Set[chess.Square]  # Squares being attacked
-    target_pieces: List[chess.Piece]   # Pieces being attacked
-    value: float                       # Material value of the opportunity
-    description: str                   # Natural language description
-    confidence: float                  # How certain we are about this opportunity (0-1)
+    type: str                                    # 'fork', 'discovered_attack', etc.
+    target_squares: Set['chess.Square']          # Squares being attacked
+    target_pieces: List['chess.Piece']           # Pieces being attacked
+    value: float                                 # Material value of the opportunity
+    description: str                             # Natural language description
+    confidence: float                            # How certain we are about this opportunity (0-1)
 
 
 @dataclass
@@ -87,14 +89,9 @@ class ChessPieceAgent:
             
         return (tactical_component + positional_bonus) * risk_factor
     
-    def _get_attacked_squares(self, board: chess.Board, square: chess.Square) -> Set[chess.Square]:
+    def _get_attacked_squares(self, square: chess.Square) -> Set[chess.Square]:
         """Get squares attacked by piece at given square"""
-        piece = board.piece_at(square)
-        if not piece:
-            return set()
-            
-        # Use python-chess's built-in attack calculation
-        return board.attacks(square)
+        return self.engine.get_attacked_squares(square)
     
     def _find_tactical_opportunities(self, position: Position, move: str) -> List[TacticalOpportunity]:
         """Base implementation for finding tactical opportunities
@@ -102,26 +99,28 @@ class ChessPieceAgent:
         Subclasses can override to add piece-specific opportunities
         """
         opportunities = []
-        board = chess.Board(position.fen)
         
-        # Make the move on a copy of the board
-        board.push(chess.Move.from_uci(move))
+        # Set up position in engine
+        self.engine.set_position(position.fen, position.move_history)
+        
+        # Make the move
+        self.engine.make_move(move)
         
         # Get attacked squares after the move
         piece_square = chess.parse_square(move[2:4])
-        attacked_squares = self._get_attacked_squares(board, piece_square)
+        attacked_squares = self._get_attacked_squares(piece_square)
         
         # Look for forks
-        fork_opportunities = self._find_forks(board, piece_square, attacked_squares)
+        fork_opportunities = self._find_forks(piece_square, attacked_squares)
         opportunities.extend(fork_opportunities)
         
         # Look for discovered attacks
-        discovered_opportunities = self._find_discovered_attacks(board, piece_square, position)
+        discovered_opportunities = self._find_discovered_attacks(piece_square, position, move)
         opportunities.extend(discovered_opportunities)
         
         return opportunities
 
-    def _find_forks(self, board: chess.Board, piece_square: chess.Square, 
+    def _find_forks(self, piece_square: chess.Square, 
                     attacked_squares: Set[chess.Square]) -> List[TacticalOpportunity]:
         """Find fork opportunities where piece attacks multiple valuable pieces"""
         opportunities = []
@@ -129,8 +128,8 @@ class ChessPieceAgent:
         
         # Collect valuable pieces being attacked
         for square in attacked_squares:
-            piece = board.piece_at(square)
-            if piece and piece.color != board.turn:
+            piece = self.engine.get_piece_at(square)
+            if piece and piece.color != self.engine.get_turn():
                 attacked_pieces.append((square, piece))
                 
         # Look for valuable combinations (2 or more pieces)
@@ -145,7 +144,7 @@ class ChessPieceAgent:
             desc = self._generate_fork_description(target_pieces, value)
             
             # Confidence based on protection
-            confidence = self._calculate_tactic_confidence(board, piece_square, target_squares)
+            confidence = self._calculate_tactic_confidence(piece_square, target_squares)
             
             opportunities.append(TacticalOpportunity(
                 type='fork',
@@ -158,24 +157,36 @@ class ChessPieceAgent:
             
         return opportunities
 
-    def _find_discovered_attacks(self, board: chess.Board, piece_square: chess.Square,
-                               position: Position) -> List[TacticalOpportunity]:
-        """Find opportunities where piece move reveals attack from another piece"""
+    def _find_discovered_attacks(self, piece_square: 'chess.Square',
+                               position: Position, move: str) -> List[TacticalOpportunity]:
+        """Find opportunities where piece move reveals attack from another piece
+        
+        Args:
+            piece_square: Square where the piece will be after the move
+            position: Current position before the move
+            move: Move in UCI format
+            
+        Returns:
+            List of discovered attack opportunities
+        """
         opportunities = []
         
         # Get the original position before the piece moved
-        original_board = chess.Board(position.fen)
+        self.engine.set_position(position.fen, position.move_history)
         
         # Find our attacking pieces (excluding the piece that moved)
         our_pieces = {
-            square: piece for square, piece in original_board.piece_map().items()
-            if piece.color == original_board.turn and square != piece_square
+            square: piece for square, piece in self.engine.get_piece_map().items()
+            if piece.color == self.engine.get_turn() and square != piece_square
         }
         
-        # Find enemy valuable pieces
+        # Make the move
+        self.engine.make_move(move)
+        
+        # Get enemy pieces after the move
         enemy_pieces = {
-            square: piece for square, piece in board.piece_map().items()
-            if piece.color != board.turn
+            square: piece for square, piece in self.engine.get_piece_map().items()
+            if piece.color != self.engine.get_turn()
         }
         
         # Check each of our pieces for potential discovered attacks
@@ -185,8 +196,13 @@ class ChessPieceAgent:
                 continue
                 
             # Get attacked squares for this piece before and after piece move
-            before_squares = self._get_attacked_squares(original_board, our_square)
-            after_squares = self._get_attacked_squares(board, our_square)
+            self.engine.set_position(position.fen, position.move_history)
+            before_squares = self._get_attacked_squares(our_square)
+            
+            # Get attacked squares after the move
+            self.engine.set_position(position.fen, position.move_history)
+            self.engine.make_move(move)
+            after_squares = self._get_attacked_squares(our_square)
             
             # Find newly attacked squares
             new_squares = after_squares - before_squares
@@ -196,7 +212,7 @@ class ChessPieceAgent:
                 if enemy_square in new_squares:
                     # We found a discovered attack!
                     value = self._get_piece_value(enemy_piece)
-                    confidence = self._calculate_tactic_confidence(board, our_square, {enemy_square})
+                    confidence = self._calculate_tactic_confidence(our_square, {enemy_square})
                     
                     desc = self._generate_discovered_attack_description(
                         our_piece, enemy_piece, value)
@@ -232,20 +248,19 @@ class ChessPieceAgent:
             
         return value
 
-    def _calculate_tactic_confidence(self, board: chess.Board, 
-                                   piece_square: chess.Square,
+    def _calculate_tactic_confidence(self, piece_square: chess.Square,
                                    target_squares: Set[chess.Square]) -> float:
         """Calculate how confident we are in a tactical opportunity"""
         # Base confidence from emotional state if available
         confidence = getattr(self, 'emotional_state', None).confidence if hasattr(self, 'emotional_state') else 0.5
         
         # Reduce confidence if piece is under attack
-        if board.is_attacked_by(not board.turn, piece_square):
+        if self.engine.is_attacked_by(not self.engine.get_turn(), piece_square):
             confidence *= 0.7
             
         # Reduce confidence if targets are well protected
         for square in target_squares:
-            if board.is_attacked_by(not board.turn, square):
+            if self.engine.is_attacked_by(not self.engine.get_turn(), square):
                 confidence *= 0.8
                 
         return min(1.0, max(0.1, confidence))

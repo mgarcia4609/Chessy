@@ -4,7 +4,8 @@ import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set, Dict
+import chess
 
 
 @dataclass
@@ -17,13 +18,15 @@ class EngineAnalysis:
     time_ms: int
     nps: int  # Nodes per second
 
+
 @dataclass
 class SunfishEngine:
-    """UCI-based wrapper for Sunfish chess engine"""
+    """UCI-based wrapper for Sunfish chess engine with additional chess utilities"""
     process: subprocess.Popen
     _output_queue: queue.Queue
     _reader_thread: threading.Thread
     _is_ready: bool = False
+    _board: Optional[chess.Board] = None  # Current board state
     
     @classmethod
     def create_new(cls) -> 'SunfishEngine':
@@ -78,6 +81,7 @@ class SunfishEngine:
             if line == "readyok":
                 self._is_ready = True
                 break
+        self._board = chess.Board()  # Initialize empty board
     
     def _send_command(self, cmd: str):
         """Send a command to the engine"""
@@ -95,11 +99,15 @@ class SunfishEngine:
         """Set the current position"""
         if fen:
             cmd = f"position fen {fen}"
+            self._board = chess.Board(fen)
         else:
             cmd = "position startpos"
+            self._board = chess.Board()
         
         if moves:
             cmd += f" moves {' '.join(moves)}"
+            for move in moves:
+                self._board.push(chess.Move.from_uci(move))
         
         self._send_command(cmd)
     
@@ -171,3 +179,60 @@ class SunfishEngine:
             self.quit()
         except:
             pass
+
+    # Chess utility methods (wrapping python-chess functionality)
+    def get_attacked_squares(self, square: chess.Square) -> Set[chess.Square]:
+        """Get squares attacked by piece at given square"""
+        if not self._board:
+            return set()
+        piece = self._board.piece_at(square)
+        if not piece:
+            return set()
+        return self._board.attacks(square)
+    
+    def get_piece_at(self, square: chess.Square) -> Optional[chess.Piece]:
+        """Get piece at given square"""
+        if not self._board:
+            return None
+        return self._board.piece_at(square)
+    
+    def get_piece_map(self) -> Dict[chess.Square, chess.Piece]:
+        """Get map of all pieces on the board"""
+        if not self._board:
+            return {}
+        return self._board.piece_map()
+    
+    def is_attacked_by(self, color: bool, square: chess.Square) -> bool:
+        """Check if square is attacked by given color"""
+        if not self._board:
+            return False
+        return self._board.is_attacked_by(color, square)
+    
+    def make_move(self, move: str) -> None:
+        """Make a move on the internal board"""
+        if not self._board:
+            return
+        self._board.push(chess.Move.from_uci(move))
+    
+    def copy_board(self) -> chess.Board:
+        """Get a copy of the current board state"""
+        if not self._board:
+            return chess.Board()
+        return self._board.copy()
+    
+    def get_legal_moves(self) -> List[chess.Move]:
+        """Get list of legal moves in current position"""
+        if not self._board:
+            return []
+        return list(self._board.legal_moves)
+    
+    def get_turn(self) -> bool:
+        """Get current side to move (True for white, False for black)"""
+        if not self._board:
+            return True
+        return self._board.turn
+
+    def parse_square(self, square: str) -> chess.Square:
+        """Parse a square from a string"""
+        return chess.parse_square(square)
+

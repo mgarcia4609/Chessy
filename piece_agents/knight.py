@@ -1,6 +1,5 @@
 """A knight that loves to create chaos and find tactical opportunities"""
 from typing import List, Optional
-import chess
 
 from .base_agent import ChessPieceAgent, TacticalOpportunity
 from debate_system.protocols import Position, EngineAnalysis, EmotionalState
@@ -23,7 +22,7 @@ class KnightAgent(ChessPieceAgent):
         depth_bonus = analysis.depth * 0.1 * self.emotional_state.confidence
         
         # Bonus for number of legal moves (knight mobility)
-        mobility_bonus = len(analysis.legal_moves) * 0.05 * self.emotional_state.risk_modifier
+        mobility_bonus = len(self.engine.get_legal_moves()) * 0.05 * self.emotional_state.risk_modifier
         
         return base_score + depth_bonus + mobility_bonus
         
@@ -76,8 +75,8 @@ class KnightAgent(ChessPieceAgent):
                 parts.append("A solid move that maintains the balance while looking for chances.")
         
         # Add mobility considerations
-        knight_square = chess.parse_square(move[2:4])
-        attacked_squares = self._get_attacked_squares(chess.Board(position.fen), knight_square)
+        knight_square = self.engine.parse_square(move[2:4])
+        attacked_squares = self._get_attacked_squares(self.engine.board, knight_square)
         mobility = len(attacked_squares)
         
         if mobility >= 6:
