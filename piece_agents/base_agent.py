@@ -1,190 +1,85 @@
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple, ClassVar
-from enum import Enum
-import copy
-from sunfish import Position, Move, piece as PIECE_VALUES, pst as PIECE_SQUARE_TABLES
+from typing import List, Optional, Dict
 
-class TraitEffect(Enum):
-    """Types of effects a trait can have"""
-    PIECE_VALUE = "piece_value"
-    SQUARE_TABLE = "square_table"
-    MOVE_SCORE = "move_score"
-    ARGUMENT = "argument"
+from chess_engine.sunfish_wrapper import SunfishEngine
+from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig
 
 @dataclass
-class PersonalityTrait:
-    """Represents a personality trait and its strength"""
-    name: str
-    strength: float  # 0.0 to 1.0
-    description: str
-    effects: List[TraitEffect]
-
 class ChessPieceAgent:
-    """Base class for chess piece agents with personality-driven behavior"""
+    """Base class for chess piece agents"""
+    engine: SunfishEngine
+    personality: PersonalityConfig
     
-    # Class-level trait definitions that can be used by all pieces
-    TRAITS: ClassVar[Dict[str, PersonalityTrait]] = {
-        "aggressive": PersonalityTrait(
-            name="aggressive",
-            strength=0.7,
-            description="Prefers attacking moves and forward positions",
-            effects=[TraitEffect.PIECE_VALUE, TraitEffect.SQUARE_TABLE, TraitEffect.MOVE_SCORE]
-        ),
-        "cautious": PersonalityTrait(
-            name="cautious",
-            strength=0.6,
-            description="Prefers safe moves and defensive positions",
-            effects=[TraitEffect.PIECE_VALUE, TraitEffect.SQUARE_TABLE, TraitEffect.MOVE_SCORE]
-        ),
-        "protective": PersonalityTrait(
-            name="protective",
-            strength=0.5,
-            description="Values staying near friendly pieces",
-            effects=[TraitEffect.MOVE_SCORE, TraitEffect.ARGUMENT]
-        )
-    }
+    def __post_init__(self):
+        """Initialize the engine with personality settings"""
+        for option, value in self.personality.options.items():
+            self.engine.set_option(option, value)
     
-    def __init__(self, piece_type: str, traits: List[PersonalityTrait], name: str = None):
-        """
-        Initialize a chess piece agent
+    def evaluate_move(self, position: Position, move: str, think_time: int = 500) -> MoveProposal:
+        """Evaluate a potential move
         
         Args:
-            piece_type: One of 'P', 'N', 'B', 'R', 'Q', 'K'
-            traits: List of personality traits that influence behavior
-            name: Optional name for the piece (e.g. "Kingside Knight")
-        """
-        if piece_type not in PIECE_VALUES:
-            raise ValueError(f"Invalid piece type: {piece_type}")
-        
-        self.piece_type = piece_type
-        self.traits = {trait.name: trait for trait in traits}
-        self.name = name or f"{piece_type}"
-        
-        # Store original values for reference
-        self._original_piece_value = PIECE_VALUES[self.piece_type]
-        self._original_square_table = copy.deepcopy(PIECE_SQUARE_TABLES[self.piece_type])
-        
-        # Create our own copies of the evaluation tables
-        self.piece_value = self._modify_piece_value()
-        self.square_table = self._modify_square_table()
-    
-    def _modify_piece_value(self) -> int:
-        """Modify base piece value based on personality traits"""
-        value = self._original_piece_value
-        
-        for trait in self.traits.values():
-            if TraitEffect.PIECE_VALUE not in trait.effects:
-                continue
-                
-            if trait.name == "aggressive":
-                value *= (1 + 0.2 * trait.strength)
-            elif trait.name == "cautious":
-                value *= (1 - 0.1 * trait.strength)
-        
-        return int(value)
-    
-    def _modify_square_table(self) -> Tuple[int, ...]:
-        """Modify piece-square table based on personality"""
-        table = list(self._original_square_table)
-        
-        for trait in self.traits.values():
-            if TraitEffect.SQUARE_TABLE not in trait.effects:
-                continue
-                
-            if trait.name == "aggressive":
-                # Prefer forward positions
-                table = [
-                    v * (1 + 0.1 * trait.strength) if 60 <= i <= 90 else v 
-                    for i, v in enumerate(table)
-                ]
-            elif trait.name == "cautious":
-                # Prefer back ranks
-                table = [
-                    v * (1 + 0.1 * trait.strength) if i >= 90 else v 
-                    for i, v in enumerate(table)
-                ]
-        
-        return tuple(table)
-    
-    def evaluate_move(self, position: Position, move: Move) -> float:
-        """
-        Evaluate a potential move considering personality traits
-        
-        Args:
-            position: Current board position
-            move: Potential move to evaluate
+            position: Current chess position
+            move: Move in UCI format (e.g. 'e2e4')
+            think_time: Time to think in milliseconds
             
         Returns:
-            float: Score for the move, higher is better
+            MoveProposal with evaluation and analysis
         """
-        score = self._calculate_base_score(position, move)
-        score = self._apply_trait_modifiers(position, move, score)
-        return score
-    
-    def _calculate_base_score(self, position: Position, move: Move) -> float:
-        """Calculate base score using our modified evaluation tables"""
-        i, j = move.i, move.j
-        score = self.square_table[j] - self.square_table[i]
+        # Set up position in engine
+        self.engine.set_position(position.fen, position.move_history)
         
-        # Add capture value if applicable
-        captured = position.board[j]
-        if captured.islower():
-            score += PIECE_VALUES[captured.upper()]
+        # Analyze the position after the move
+        best_move, analyses = self.engine.go(movetime=think_time)
         
-        return float(score)
-    
-    def _apply_trait_modifiers(self, position: Position, move: Move, score: float) -> float:
-        """Apply personality trait modifiers to move score"""
-        for trait in self.traits.values():
-            if TraitEffect.MOVE_SCORE not in trait.effects:
-                continue
-                
-            if trait.name == "aggressive":
-                # Bonus for captures and forward movement
-                if position.board[move.j].islower():
-                    score *= (1 + 0.3 * trait.strength)
-                if move.j < move.i:  # Moving forward
-                    score *= (1 + 0.1 * trait.strength)
-                    
-            elif trait.name == "protective":
-                # Bonus for moves near friendly pieces
-                friendly_count = sum(1 for p in position.board[move.j-10:move.j+10] 
-                                  if p.isupper())
-                score += friendly_count * 10 * trait.strength
+        # Get the final/deepest analysis
+        final_analysis = analyses[-1] if analyses else None
         
-        return score
-    
-    def generate_argument(self, position: Position, move: Move, score: float) -> str:
-        """
-        Generate a natural language argument for why this move should be chosen
-        
-        Args:
-            position: Current board position
-            move: The move being argued for
-            score: The calculated score for the move
+        if not final_analysis:
+            return None
             
-        Returns:
-            str: A natural language argument for the move
-        """
-        argument_parts = []
+        # Calculate weighted score based on personality
+        weighted_score = self._calculate_weighted_score(final_analysis)
         
-        # Basic move description
-        captured = position.board[move.j]
-        argument_parts.append(
-            f"I propose moving to {chr(ord('a') + move.j%10)}{move.j//10}"
+        # Generate argument based on personality and analysis
+        argument = self._generate_argument(position, move, final_analysis)
+        
+        return MoveProposal(
+            move=move,
+            score=weighted_score,
+            analysis=final_analysis,
+            argument=argument
         )
+    
+    def _calculate_weighted_score(self, analysis: EngineAnalysis) -> float:
+        """Calculate weighted score based on personality
         
-        if captured.islower():
-            argument_parts.append(f"capturing their {captured.upper()}")
+        This is where different piece personalities can emphasize different aspects
+        of the position (tactical vs positional, risk vs safety, etc)
+        """
+        base_score = analysis.score
         
-        # Add personality-flavored justification
-        for trait in self.traits.values():
-            if TraitEffect.ARGUMENT not in trait.effects:
-                continue
-                
-            if trait.name == "aggressive" and trait.strength > 0.5:
-                argument_parts.append("which gives us a strong attacking position!")
-            elif trait.name == "protective" and trait.strength > 0.5:
-                argument_parts.append("where I can better protect our pieces.")
+        # Apply personality weights
+        tactical_component = base_score * self.personality.tactical_weight
+        positional_bonus = (analysis.depth * 10) * self.personality.positional_weight
         
-        return " ".join(argument_parts) 
+        # Risk adjustment based on personality
+        risk_factor = 1.0
+        if base_score > 0:
+            # Winning positions - aggressive personalities push harder
+            risk_factor += (self.personality.risk_tolerance - 0.5) * 0.5
+        else:
+            # Losing positions - cautious personalities defend harder
+            risk_factor += (0.5 - self.personality.risk_tolerance) * 0.5
+            
+        return (tactical_component + positional_bonus) * risk_factor
+    
+    def _generate_argument(self, position: Position, move: str, analysis: EngineAnalysis) -> str:
+        """Generate an argument for the move based on personality and analysis
+        
+        This should be overridden by specific piece agents to provide
+        character-appropriate arguments
+        """
+        raise NotImplementedError(
+            "Specific piece agents must implement _generate_argument"
+        ) 

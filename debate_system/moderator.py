@@ -1,23 +1,16 @@
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+import chess
+
 from piece_agents.base_agent import ChessPieceAgent
-from piece_agents.knight import KnightAgent
-from sunfish import Position, Move
-
-@dataclass
-class MoveProposal:
-    """A proposed move from a piece"""
-    piece: ChessPieceAgent
-    move: Move
-    score: float
-    argument: str
-
-@dataclass
-class DebateRound:
-    """Records a round of debate"""
-    position: Position
-    proposals: List[MoveProposal]
-    winning_proposal: Optional[MoveProposal] = None
+from piece_agents.personality_factory import PersonalityFactory
+from chess_engine.sunfish_wrapper import SunfishEngine
+from debate_system.protocols import (
+    Position, 
+    MoveProposal, 
+    DebateRound,
+    PersonalityConfig
+)
 
 class DebateModerator:
     """Manages the debate process between chess pieces"""
@@ -25,39 +18,82 @@ class DebateModerator:
     def __init__(self, pieces: Dict[str, ChessPieceAgent]):
         self.pieces = pieces
         self.debate_history: List[DebateRound] = []
-    
+
     @classmethod
-    def create_default(cls) -> 'DebateModerator':
-        """Create a moderator with default pieces"""
-        pieces = {
-            'N': KnightAgent("Sir Galahop"),
-            # Add other pieces here as they are implemented
-        }
+    def create_default(cls, engine: SunfishEngine) -> 'DebateModerator':
+        """Create a moderator with default pieces
+        
+        Each piece gets its own engine instance to allow for parallel analysis
+        and different personality settings.
+        """
+        # Create personalities using the factory
+        factory = PersonalityFactory()
+        personalities = factory.create_all_personalities()
+        
+        # Create a separate engine instance for each piece
+        pieces = {}
+        for piece_type, personality in personalities.items():
+            piece_engine = SunfishEngine.create_new()
+            pieces[piece_type] = ChessPieceAgent(
+                engine=piece_engine,
+                personality=personality
+            )
+
         return cls(pieces)
     
-    def get_proposals(self, position: Position, moves: List[Move]) -> List[MoveProposal]:
-        """Gather move proposals from all pieces that can move"""
-        proposals = []
+    @classmethod
+    def create_themed(cls, engine: SunfishEngine, theme: str) -> 'DebateModerator':
+        """Create a moderator with themed piece personalities
         
-        for move in moves:
-            piece = position.board[move.i].upper()
-            if piece in self.pieces:
-                agent = self.pieces[piece]
-                score = agent.evaluate_move(position, move)
-                argument = agent.generate_argument(position, move, score)
+        Args:
+            engine: Base engine instance
+            theme: Theme to apply ('aggressive', 'defensive', 'creative')
+        """
+        factory = PersonalityFactory()
+        pieces = {}
+        
+        for piece_type in ['P', 'N', 'B', 'R', 'Q', 'K']:
+            personality = factory.create_themed_personality(piece_type, theme)
+            piece_engine = SunfishEngine.create_new()
+            pieces[piece_type] = ChessPieceAgent(
+                engine=piece_engine,
+                personality=personality
+            )
+            
+        return cls(pieces)
+
+    def get_proposals(self, position: Position, moves: List[str]) -> List[MoveProposal]:
+        """Gather move proposals from all pieces that can move
+        
+        Args:
+            position: Current chess position
+            moves: List of legal moves in UCI format
+        """
+        proposals = []
+        board = chess.Board(position.fen)
+        
+        for move_uci in moves:
+            # Parse UCI move
+            move = chess.Move.from_uci(move_uci)
+            from_square = move.from_square
+            
+            # Get piece type at the from square
+            piece = board.piece_at(from_square)
+            if not piece or not piece.color == chess.WHITE:
+                continue
                 
-                proposals.append(MoveProposal(
-                    piece=agent,
-                    move=move,
-                    score=score,
-                    argument=argument
-                ))
+            piece_type = piece.symbol().upper()
+            if piece_type in self.pieces:
+                agent = self.pieces[piece_type]
+                proposal = agent.evaluate_move(position, move_uci)
+                if proposal:
+                    proposals.append(proposal)
         
         # Sort by score descending
         proposals.sort(key=lambda p: p.score, reverse=True)
         return proposals
     
-    def conduct_debate(self, position: Position, moves: List[Move]) -> DebateRound:
+    def conduct_debate(self, position: Position, moves: List[str]) -> DebateRound:
         """Conduct a debate round and return the results"""
         proposals = self.get_proposals(position, moves)
         debate = DebateRound(position=position, proposals=proposals)
@@ -79,14 +115,14 @@ class DebateModerator:
         
         for i, proposal in enumerate(debate.proposals):
             summary_parts.append(
-                f"{i+1}. {proposal.piece.name}'s proposal "
+                f"{i+1}. {proposal.piece.personality.name}'s proposal "
                 f"(score: {proposal.score:.2f}):\n"
                 f"{proposal.argument}\n"
             )
         
         if debate.winning_proposal:
             summary_parts.append(
-                f"\nWinning move: {debate.winning_proposal.piece.name}'s proposal"
+                f"\nWinning move: {debate.winning_proposal.piece.personality.name}'s proposal"
             )
         
         return "\n".join(summary_parts)

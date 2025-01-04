@@ -1,2 +1,3 @@
 .venv/
 sunfish/
+__pycache__/

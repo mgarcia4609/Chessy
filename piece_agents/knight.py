@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict, Set
 from dataclasses import dataclass
 from .base_agent import ChessPieceAgent, PersonalityTrait, TraitEffect
-from sunfish import Position, Move, PIECE_VALUES
+from debate_system.protocols import SunfishPosition, SunfishMove
 
 @dataclass
 class TacticalOpportunity:
@@ -14,7 +14,7 @@ class TacticalOpportunity:
 class KnightAgent(ChessPieceAgent):
     """A knight that loves to create chaos and find tactical opportunities"""
     
-    def __init__(self, name: str = None):
+    def __init__(self, engine, name: str = None):
         traits = [
             PersonalityTrait(
                 name="tactical",
@@ -35,7 +35,7 @@ class KnightAgent(ChessPieceAgent):
                 effects=[TraitEffect.PIECE_VALUE, TraitEffect.SQUARE_TABLE, TraitEffect.MOVE_SCORE]
             )
         ]
-        super().__init__("N", traits, name)
+        super().__init__(engine, "N", traits, name)
         
         # Cache for tactical analysis
         self._tactical_cache: Dict[Tuple[str, int], List[TacticalOpportunity]] = {}
@@ -52,8 +52,8 @@ class KnightAgent(ChessPieceAgent):
     
     def _analyze_tactical_opportunities(
         self,
-        position: Position,
-        move: Move
+        position: SunfishPosition,
+        move: SunfishMove
     ) -> List[TacticalOpportunity]:
         """Analyze tactical opportunities from a position"""
         # Check cache first
@@ -77,7 +77,7 @@ class KnightAgent(ChessPieceAgent):
             
             # Calculate fork value based on targeted pieces
             fork_value = sum(
-                PIECE_VALUES[piece] for piece in target_pieces
+                self.engine.piece[piece] for piece in target_pieces
             )
             
             opportunities.append(TacticalOpportunity(
@@ -91,7 +91,7 @@ class KnightAgent(ChessPieceAgent):
         self._tactical_cache[cache_key] = opportunities
         return opportunities
     
-    def _apply_trait_modifiers(self, position: Position, move: Move, score: float) -> float:
+    def _apply_trait_modifiers(self, position: SunfishPosition, move: SunfishMove, score: float) -> float:
         """Apply knight-specific trait modifiers"""
         score = super()._apply_trait_modifiers(position, move, score)
         
@@ -119,7 +119,7 @@ class KnightAgent(ChessPieceAgent):
         
         return score
     
-    def generate_argument(self, position: Position, move: Move, score: float) -> str:
+    def generate_argument(self, position: SunfishPosition, move: SunfishMove, score: float) -> str:
         """Generate a knight-specific argument for the move"""
         # Start with basic argument
         argument_parts = []
