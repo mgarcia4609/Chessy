@@ -1,8 +1,9 @@
 """Factory for creating chess piece personalities"""
-from typing import Dict
 from dataclasses import dataclass
+from typing import Dict
 
 from debate_system.protocols import PersonalityConfig
+
 
 @dataclass
 class PersonalityTemplate:

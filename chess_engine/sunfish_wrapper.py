@@ -1,12 +1,11 @@
-from dataclasses import dataclass
-from typing import Optional, Tuple, List, Dict
-import subprocess
-import threading
 import queue
-import time
-import os
+import subprocess
 import sys
+import threading
+from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Optional, Tuple
+
 
 @dataclass
 class EngineAnalysis:

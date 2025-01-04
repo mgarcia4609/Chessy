@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from typing import List, Optional, Dict
 
 from chess_engine.sunfish_wrapper import SunfishEngine
 from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig
+
 
 @dataclass
 class ChessPieceAgent:

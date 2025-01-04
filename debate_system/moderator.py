@@ -1,16 +1,15 @@
-from typing import Dict, List, Optional
-from dataclasses import dataclass
 import chess
+from typing import Dict, List
 
-from piece_agents.base_agent import ChessPieceAgent
-from piece_agents.personality_factory import PersonalityFactory
 from chess_engine.sunfish_wrapper import SunfishEngine
 from debate_system.protocols import (
-    Position, 
-    MoveProposal, 
     DebateRound,
-    PersonalityConfig
+    MoveProposal,
+    Position,
 )
+from piece_agents.base_agent import ChessPieceAgent
+from piece_agents.personality_factory import PersonalityFactory
+
 
 class DebateModerator:
     """Manages the debate process between chess pieces"""

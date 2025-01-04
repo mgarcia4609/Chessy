@@ -1,7 +1,8 @@
 """Protocols and data structures for the debate chess system"""
-from dataclasses import dataclass
-from typing import List, Optional, Tuple, Dict
 from enum import Enum
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+
 
 class InteractionType(Enum):
     """Types of interactions between pieces"""
