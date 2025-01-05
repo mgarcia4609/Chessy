@@ -253,3 +253,86 @@ class InteractionProfile:
     cooperation_style: str  # How they work with others
     conflict_style: str     # How they handle disagreements
     leadership_style: str   # How they influence others
+
+@dataclass
+class GameMemory:
+    """Tracks significant game events and their emotional impact"""
+    
+    key_moments: List[GameMoment]
+    narrative_threads: Dict[str, List[str]]  # Piece -> their story
+    emotional_triggers: Dict[str, List[Trigger]]  # What affects each piece
+    
+    def record_moment(self, position: Position, move: str, 
+                     emotional_impact: Dict[str, float]):
+        """Record a significant game moment"""
+        moment = GameMoment(
+            position=position,
+            move=move,
+            impact=emotional_impact,
+            turn=len(self.key_moments) + 1
+        )
+        self.key_moments.append(moment)
+        
+        # Update narrative threads
+        piece = self.get_moving_piece(move)
+        self.narrative_threads[piece].append(
+            self.generate_moment_narrative(moment))
+        
+        # Update emotional triggers
+        if abs(max(emotional_impact.values())) > 0.2:
+            self.emotional_triggers[piece].append(
+                Trigger(position.pattern, emotional_impact))
+    
+    def generate_argument_context(self, piece: str, 
+                                position: Position) -> str:
+        """Generate contextual argument based on piece's history"""
+        relevant_moments = self.find_relevant_moments(piece, position)
+        emotional_state = self.calculate_current_emotion(piece)
+        
+        return self.generate_narrative(
+            piece, relevant_moments, emotional_state)
+
+@dataclass
+class PsychologicalState:
+    """Tracks overall board psychology"""
+    cohesion: float = 0.5      # Team unity and coordination
+    morale: float = 0.5        # Overall team spirit
+    coordination: float = 0.5   # Tactical cooperation efficiency  
+    leadership: float = 0.5     # Strength of leadership structure
+
+    def evaluate_team_state(self) -> Dict[str, float]:
+        """Evaluate various team metrics"""
+        return {
+            'cohesion': self.cohesion,
+            'morale': self.morale, 
+            'coordination': self.coordination,
+            'leadership': self.leadership
+        }
+
+    def simulate_psychological_impact(self, move: str) -> Dict[str, float]:
+        """Predict how a move will affect team psychology"""
+        impacts = {}
+        
+        # Material impact
+        if self.is_capture(move):
+            impacts['morale'] = -0.1  # Loss of material hurts morale
+            
+        # Position impact
+        if self.is_retreat(move):
+            impacts['confidence'] = -0.05
+            
+        # Relationship impact
+        if self.is_sacrifice(move):
+            piece = self.get_sacrificed_piece(move)
+            impacts[f'trust_{piece}'] = -0.2
+            
+        return impacts
+
+@dataclass
+class LLMContext:
+    """Context bundle for LLM character inference"""
+    personality_template: PersonalityTemplate
+    recent_interactions: List[Interaction]
+    game_memory: GameMemory
+    psychological_state: PsychologicalState
+    debate_history: List[DebateRound]
