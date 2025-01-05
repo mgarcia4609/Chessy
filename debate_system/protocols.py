@@ -234,3 +234,22 @@ class RelationshipNetwork:
         trust = self.trust_matrix.get((piece1, piece2), 0.5)
         recent = self.get_recent_cooperation(piece1, piece2)
         return trust * (1 + recent * 0.5)  # Recent cooperation amplifies trust
+
+class PersonalityTrait(Enum):
+    """Core personality traits that influence behavior and interactions"""
+    DRAMATIC = "dramatic"           # Queen's flair, Knight's quests
+    ANALYTICAL = "analytical"       # Bishop's preaching, King's theories
+    PROTECTIVE = "protective"       # Rook's fortresses, King's safety
+    REVOLUTIONARY = "revolutionary" # Pawn's ambitions
+    ADVENTUROUS = "adventurous"     # Knight's quests
+    NEUROTIC = "neurotic"           # King's anxiety, Rook's agoraphobia
+    ZEALOUS = "zealous"             # Bishop's conversion attempts
+    THEATRICAL = "theatrical"       # Queen's drama
+
+@dataclass
+class InteractionProfile:
+    """Defines how a piece tends to interact with others"""
+    primary_traits: List[PersonalityTrait]
+    cooperation_style: str  # How they work with others
+    conflict_style: str     # How they handle disagreements
+    leadership_style: str   # How they influence others
