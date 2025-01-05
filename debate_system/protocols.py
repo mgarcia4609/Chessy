@@ -1,7 +1,7 @@
 """Protocols and data structures for the debate chess system"""
 from enum import Enum
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 
 class InteractionType(Enum):
@@ -212,3 +212,25 @@ class PersonalityConfig:
     tactical_weight: float = 1.0    # Weight for tactical evaluation
     positional_weight: float = 1.0  # Weight for positional factors
     risk_tolerance: float = 0.5     # 0 = very cautious, 1 = very aggressive
+
+@dataclass
+class PersonalityTemplate:
+    """Template for creating piece personalities"""
+    name: str
+    title: str  # e.g., "Sir", "Bishop", "Queen"
+    description_template: str
+    options: Dict[str, int]
+    tactical_weight: float
+    positional_weight: float
+    risk_tolerance: float
+
+class RelationshipNetwork:
+    """Tracks relationships between pieces"""
+    trust_matrix: Dict[Tuple[str, str], float]  # (piece1, piece2) -> trust level
+    recent_interactions: List[Interaction]  # Last N interactions
+    
+    def get_support_bonus(self, piece1: str, piece2: str) -> float:
+        """Calculate bonus for pieces working together"""
+        trust = self.trust_matrix.get((piece1, piece2), 0.5)
+        recent = self.get_recent_cooperation(piece1, piece2)
+        return trust * (1 + recent * 0.5)  # Recent cooperation amplifies trust

@@ -1,20 +1,8 @@
 """Factory for creating chess piece personalities"""
-from dataclasses import dataclass
 from typing import Dict
 
-from debate_system.protocols import PersonalityConfig
+from debate_system.protocols import PersonalityConfig, PersonalityTemplate
 
-
-@dataclass
-class PersonalityTemplate:
-    """Template for creating piece personalities"""
-    name: str
-    title: str  # e.g., "Sir", "Bishop", "Queen"
-    description_template: str
-    options: Dict[str, int]
-    tactical_weight: float
-    positional_weight: float
-    risk_tolerance: float
 
 class PersonalityFactory:
     """Factory for creating chess piece personalities"""
