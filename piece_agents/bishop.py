@@ -1,6 +1,5 @@
 """A contemplative bishop who sees the board as a spiritual battlefield"""
 from typing import List, Optional
-import chess
 
 from .base_agent import ChessPieceAgent, TacticalOpportunity
 from debate_system.protocols import Position, EngineAnalysis, EmotionalState
@@ -49,7 +48,7 @@ class BishopAgent(ChessPieceAgent):
         """Check if bishop has clear diagonal paths (paths of enlightenment)"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == chess.BISHOP and 
+            if (piece and piece.piece_type == self.engine.BISHOP and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -65,7 +64,7 @@ class BishopAgent(ChessPieceAgent):
         """Count how many enemy pieces we can potentially 'convert'"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == chess.BISHOP and 
+            if (piece and piece.piece_type == self.engine.BISHOP and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break

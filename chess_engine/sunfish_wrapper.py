@@ -6,6 +6,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple, Set, Dict
 import chess
+# Chess constants to avoid circular imports
+class ChessConstants:
+    """Constants from chess module to avoid circular imports"""
+    # Piece types
+    QUEEN = chess.QUEEN
+    ROOK = chess.ROOK
+    BISHOP = chess.BISHOP
+    KNIGHT = chess.KNIGHT
+    PAWN = chess.PAWN
+    KING = chess.KING
+    
+    # Square indices
+    E4 = chess.E4
+    D4 = chess.D4
+    E5 = chess.E5
+    D5 = chess.D5
 
 
 @dataclass
@@ -235,4 +251,11 @@ class SunfishEngine:
     def parse_square(self, square: str) -> chess.Square:
         """Parse a square from a string"""
         return chess.parse_square(square)
-
+    
+    def square_file(self, square: chess.Square) -> int:
+        """Get the file index of a square"""
+        return chess.square_file(square)
+    
+    def square_rank(self, square: chess.Square) -> int:
+        """Get the rank index of a square"""
+        return chess.square_rank(square)
