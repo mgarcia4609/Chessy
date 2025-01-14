@@ -1,11 +1,20 @@
 import queue
+print("queue imported")
 import subprocess
+print("subprocess imported")
 import sys
+print("sys imported")
 import threading
+print("threading imported")
 from dataclasses import dataclass
+print("dataclass imported")
 from pathlib import Path
+print("pathlib imported")
 from typing import List, Optional, Tuple, Set, Dict
 import chess
+print("sunfish wrapper imports done")
+import os
+
 # Chess constants to avoid circular imports
 class ChessConstants:
     """Constants from chess module to avoid circular imports"""
@@ -52,53 +61,88 @@ class SunfishEngine:
         sunfish_dir = current_dir.parent / 'sunfish'
         uci_script = sunfish_dir / 'tools' / 'uci.py'
         
+        print(f"Looking for UCI script at: {uci_script}")
+        if not uci_script.exists():
+            raise FileNotFoundError(f"Could not find UCI script at {uci_script}")
+        
         # Start the engine process
-        process = subprocess.Popen(
-            [sys.executable, str(uci_script)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1  # Line buffered
-        )
+        try:
+            # Add sunfish directory to PYTHONPATH
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(sunfish_dir) + os.pathsep + env.get("PYTHONPATH", "")
+            
+            process = subprocess.Popen(
+                [sys.executable, str(uci_script)],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,  # Line buffered
+                env=env,
+                cwd=str(sunfish_dir)  # Run from sunfish directory
+            )
+            print("Started Sunfish process")
+        except Exception as e:
+            print(f"Failed to start Sunfish process: {e}")
+            raise
         
         # Create output queue and reader thread
         output_queue = queue.Queue()
+        print("output queue created")
         
         def reader_thread(proc, queue):
             """Thread to read engine output"""
+            print("Reader thread starting...")
+            # First check if there's any error output
+            err = proc.stderr.readline()
+            if err:
+                print(f"Error from UCI script: {err}")
+            
             while True:
                 line = proc.stdout.readline()
+                print(f"Raw output: {line!r}")  # Print raw output to see if we're getting anything
                 if not line:
+                    print("Reader thread: got empty line, breaking")
                     break
-                queue.put(line.strip())
+                stripped = line.strip()
+                print(f"Stripped output: {stripped!r}")
+                queue.put(stripped)
         
         thread = threading.Thread(
             target=reader_thread,
             args=(process, output_queue),
             daemon=True
         )
+        print("reader thread created")
         thread.start()
+        print("reader thread started")
         
         engine = cls(process, output_queue, thread)
+        print("engine created")
         engine._initialize()
+        print("engine initialized")
         return engine
     
     def _initialize(self):
         """Initialize the engine with UCI protocol"""
         self._send_command("uci")
+        print("sent uci command")
         while True:
             line = self._read_line()
+            print(f"Received line: {line}")
             if line == "uciok":
                 break
         self._send_command("isready")
+        print("sent isready command")
         while True:
             line = self._read_line()
+            print(f"Received line: {line}")
             if line == "readyok":
                 self._is_ready = True
                 break
         self._board = chess.Board()  # Initialize empty board
-    
+        print("board initialized")
+
     def _send_command(self, cmd: str):
         """Send a command to the engine"""
         self.process.stdin.write(f"{cmd}\n")

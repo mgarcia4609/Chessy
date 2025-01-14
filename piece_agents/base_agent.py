@@ -301,4 +301,4 @@ class ChessPieceAgent:
         """
         raise NotImplementedError(
             "Specific piece agents must implement _generate_argument"
-        ) 
+        )
