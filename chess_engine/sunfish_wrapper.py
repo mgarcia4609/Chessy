@@ -1,297 +1,228 @@
-import queue
-print("queue imported")
-import subprocess
-print("subprocess imported")
-import sys
-print("sys imported")
-import threading
-print("threading imported")
-from dataclasses import dataclass
-print("dataclass imported")
-from pathlib import Path
-print("pathlib imported")
-from typing import List, Optional, Tuple, Set, Dict
 import chess
-print("sunfish wrapper imports done")
-import os
-
-# Chess constants to avoid circular imports
-class ChessConstants:
-    """Constants from chess module to avoid circular imports"""
-    # Piece types
-    QUEEN = chess.QUEEN
-    ROOK = chess.ROOK
-    BISHOP = chess.BISHOP
-    KNIGHT = chess.KNIGHT
-    PAWN = chess.PAWN
-    KING = chess.KING
-    
-    # Square indices
-    E4 = chess.E4
-    D4 = chess.D4
-    E5 = chess.E5
-    D5 = chess.D5
+from dataclasses import dataclass
+from typing import List, Set, Dict, Optional
+from pathlib import Path
 
 
 @dataclass
 class EngineAnalysis:
     """Analysis results from the engine"""
-    depth: int
-    score: int
-    pv: List[str]  # Principal variation (planned moves)
-    nodes: int
-    time_ms: int
-    nps: int  # Nodes per second
+    score: float  # Total evaluation score
+    material_balance: float = 0  # Pure material score
+    positional_score: float = 0  # Position quality score
+    mobility_score: float = 0  # Movement possibilities score
+    center_control: float = 0  # Control of central squares
+    king_safety: float = 0  # King safety evaluation
+    depth: int = 1  # Search depth (1 for static evaluation)
+    pv: List[str] = None  # Principal variation (planned moves)
+    
+    def __post_init__(self):
+        if self.pv is None:
+            self.pv = []
+
+    def __str__(self):
+        """Human readable analysis"""
+        return (f"Score: {self.score:.2f} "
+                f"(Material: {self.material_balance:.2f}, "
+                f"Position: {self.positional_score:.2f}, "
+                f"Mobility: {self.mobility_score:.2f}, "
+                f"Center: {self.center_control:.2f}, "
+                f"King Safety: {self.king_safety:.2f})")
 
 
-@dataclass
-class SunfishEngine:
-    """UCI-based wrapper for Sunfish chess engine with additional chess utilities"""
-    process: subprocess.Popen
-    _output_queue: queue.Queue
-    _reader_thread: threading.Thread
-    _is_ready: bool = False
-    _board: Optional[chess.Board] = None  # Current board state
+class ChessEngine:
+    """Simple chess engine wrapper using python-chess"""
     
-    @classmethod
-    def create_new(cls) -> 'SunfishEngine':
-        """Create a new Sunfish engine instance"""
-        # Get path to sunfish UCI script relative to this file
-        current_dir = Path(__file__).parent
-        sunfish_dir = current_dir.parent / 'sunfish'
-        uci_script = sunfish_dir / 'tools' / 'uci.py'
-        
-        print(f"Looking for UCI script at: {uci_script}")
-        if not uci_script.exists():
-            raise FileNotFoundError(f"Could not find UCI script at {uci_script}")
-        
-        # Start the engine process
-        try:
-            # Add sunfish directory to PYTHONPATH
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(sunfish_dir) + os.pathsep + env.get("PYTHONPATH", "")
-            
-            process = subprocess.Popen(
-                [sys.executable, str(uci_script)],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,  # Line buffered
-                env=env,
-                cwd=str(sunfish_dir)  # Run from sunfish directory
-            )
-            print("Started Sunfish process")
-        except Exception as e:
-            print(f"Failed to start Sunfish process: {e}")
-            raise
-        
-        # Create output queue and reader thread
-        output_queue = queue.Queue()
-        print("output queue created")
-        
-        def reader_thread(proc, queue):
-            """Thread to read engine output"""
-            print("Reader thread starting...")
-            # First check if there's any error output
-            err = proc.stderr.readline()
-            if err:
-                print(f"Error from UCI script: {err}")
-            
-            while True:
-                line = proc.stdout.readline()
-                print(f"Raw output: {line!r}")  # Print raw output to see if we're getting anything
-                if not line:
-                    print("Reader thread: got empty line, breaking")
-                    break
-                stripped = line.strip()
-                print(f"Stripped output: {stripped!r}")
-                queue.put(stripped)
-        
-        thread = threading.Thread(
-            target=reader_thread,
-            args=(process, output_queue),
-            daemon=True
-        )
-        print("reader thread created")
-        thread.start()
-        print("reader thread started")
-        
-        engine = cls(process, output_queue, thread)
-        print("engine created")
-        engine._initialize()
-        print("engine initialized")
-        return engine
+    def __init__(self):
+        self._board = chess.Board()
     
-    def _initialize(self):
-        """Initialize the engine with UCI protocol"""
-        self._send_command("uci")
-        print("sent uci command")
-        while True:
-            line = self._read_line()
-            print(f"Received line: {line}")
-            if line == "uciok":
-                break
-        self._send_command("isready")
-        print("sent isready command")
-        while True:
-            line = self._read_line()
-            print(f"Received line: {line}")
-            if line == "readyok":
-                self._is_ready = True
-                break
-        self._board = chess.Board()  # Initialize empty board
-        print("board initialized")
-
-    def _send_command(self, cmd: str):
-        """Send a command to the engine"""
-        self.process.stdin.write(f"{cmd}\n")
-        self.process.stdin.flush()
-    
-    def _read_line(self, timeout: float = 1.0) -> Optional[str]:
-        """Read a line from the engine output"""
-        try:
-            return self._output_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
-    
-    def set_position(self, fen: Optional[str] = None, moves: List[str] = None):
+    def set_position(self, fen: str = None, moves: list = None):
         """Set the current position"""
         if fen:
-            cmd = f"position fen {fen}"
             self._board = chess.Board(fen)
         else:
-            cmd = "position startpos"
             self._board = chess.Board()
         
         if moves:
-            cmd += f" moves {' '.join(moves)}"
             for move in moves:
                 self._board.push(chess.Move.from_uci(move))
-        
-        self._send_command(cmd)
+                
+    def get_legal_moves(self) -> List[str]:
+        """Get list of legal moves in UCI format"""
+        return [move.uci() for move in self._board.legal_moves]
     
-    def go(self, movetime: int = 1000) -> Tuple[str, List[EngineAnalysis]]:
-        """Search for best move with given parameters
+    def make_move(self, move: str):
+        """Make a move on the board"""
+        self._board.push(chess.Move.from_uci(move))
         
-        Args:
-            movetime: Time to search in milliseconds
+    def evaluate_position(self) -> EngineAnalysis:
+        """Sophisticated static position evaluation"""
+        # Initialize component scores
+        material = 0
+        positional = 0
+        mobility = 0
+        center = 0
+        king_safety = 0
+        
+        # More accurate piece values (in centipawns)
+        piece_values = {
+            chess.PAWN: 100,
+            chess.KNIGHT: 320,
+            chess.BISHOP: 330,
+            chess.ROOK: 500,
+            chess.QUEEN: 900,
+            chess.KING: 20000  # High value to detect mate
+        }
+        
+        # Center squares for control evaluation
+        center_squares = {chess.E4, chess.E5, chess.D4, chess.D5}
+        extended_center = {
+            chess.C3, chess.D3, chess.E3, chess.F3,
+            chess.C4, chess.D4, chess.E4, chess.F4,
+            chess.C5, chess.D5, chess.E5, chess.F5,
+            chess.C6, chess.D6, chess.E6, chess.F6
+        }
+        
+        # Calculate material and basic positional scores
+        for square, piece in self._board.piece_map().items():
+            value = piece_values[piece.piece_type]
+            multiplier = 1 if piece.color == chess.WHITE else -1
             
-        Returns:
-            Tuple of (best_move, list of analysis info)
-        """
-        self._send_command(f"go movetime {movetime}")
-        
-        analyses = []
-        best_move = None
-        
-        while True:
-            line = self._read_line()
-            if not line:
-                continue
-                
-            if line.startswith("info"):
-                # Parse analysis info
-                parts = line.split()
-                analysis = {}
-                
-                for i, part in enumerate(parts):
-                    if part == "depth":
-                        analysis["depth"] = int(parts[i + 1])
-                    elif part == "score":
-                        analysis["score"] = int(parts[i + 2])
-                    elif part == "nodes":
-                        analysis["nodes"] = int(parts[i + 1])
-                    elif part == "time":
-                        analysis["time_ms"] = int(parts[i + 1])
-                    elif part == "nps":
-                        analysis["nps"] = int(parts[i + 1])
-                    elif part == "pv":
-                        analysis["pv"] = parts[i + 1:]
-                
-                if all(k in analysis for k in ["depth", "score", "nodes", "time_ms", "nps", "pv"]):
-                    analyses.append(EngineAnalysis(**analysis))
+            # Material score
+            material += value * multiplier
             
-            elif line.startswith("bestmove"):
-                best_move = line.split()[1]
-                break
-        
-        return best_move, analyses
-    
-    def set_option(self, name: str, value: int):
-        """Set an engine option"""
-        self._send_command(f"setoption name {name} value {value}")
-        self._send_command("isready")
-        while True:
-            line = self._read_line()
-            if line == "readyok":
-                break
-    
-    def quit(self):
-        """Quit the engine"""
-        self._send_command("quit")
-        self.process.wait()
-        self._reader_thread.join(timeout=1.0)
-    
-    def __del__(self):
-        """Cleanup when object is destroyed"""
-        try:
-            self.quit()
-        except:
-            pass
+            # Center control bonus
+            if square in center_squares:
+                center += 30 * multiplier  # Major bonus for center control
+            elif square in extended_center:
+                center += 15 * multiplier  # Minor bonus for extended center
+                
+            # Add potential center control for pawns that can move to center
+            if piece.piece_type == chess.PAWN:
+                # Get the square in front of the pawn
+                next_square = square + 8 if piece.color == chess.WHITE else square - 8
+                if 0 <= next_square < 64:  # Check if square is on board
+                    if next_square in center_squares:
+                        center += 10 * multiplier  # Bonus for potential center control
+                    elif next_square in extended_center:
+                        center += 5 * multiplier   # Minor bonus for potential extended center
 
-    # Chess utility methods (wrapping python-chess functionality)
-    def get_attacked_squares(self, square: chess.Square) -> Set[chess.Square]:
-        """Get squares attacked by piece at given square"""
-        if not self._board:
-            return set()
+            # Positional bonuses
+            if piece.piece_type == chess.PAWN:
+                # Passed pawn bonus - using bitwise operations
+                file_mask = chess.BB_FILES[chess.square_file(square)]
+                pawns_on_file = self._board.pawns & file_mask
+                # A passed pawn has no opposing pawns ahead of it on the same file
+                if piece.color == chess.WHITE:
+                    # For white pawns, check squares above
+                    ahead_mask = file_mask & ((1 << square) - 1)  # All squares above current square
+                    if not (pawns_on_file & ahead_mask & self._board.occupied_co[chess.BLACK]):
+                        positional += 50 * multiplier
+                else:
+                    # For black pawns, check squares below
+                    ahead_mask = file_mask & ~((1 << (square + 1)) - 1)  # All squares below current square
+                    if not (pawns_on_file & ahead_mask & self._board.occupied_co[chess.WHITE]):
+                        positional += 50 * multiplier
+
+                # Advanced pawn bonus
+                rank = chess.square_rank(square)
+                if piece.color == chess.WHITE:
+                    # Bonus only for advancing beyond rank 2
+                    if rank > 1:  # pawns start on rank 2
+                        positional += (rank - 1) * 10 * multiplier
+                else:
+                    # Bonus only for advancing beyond rank 7
+                    if rank < 6:  # pawns start on rank 7
+                        positional += (6 - rank) * 10 * multiplier
+
+            elif piece.piece_type == chess.BISHOP:
+                # Bishop pair bonus
+                if len([p for p in self._board.pieces(chess.BISHOP, piece.color)]) == 2:
+                    positional += 50 * multiplier
+
+            elif piece.piece_type == chess.KING:
+                # King safety evaluation
+                if len(self._board.piece_map()) > 20:  # Middlegame
+                    rank = chess.square_rank(square)
+                    file = chess.square_file(square)
+                    
+                    # Define safe squares after castling
+                    white_kingside_castle = (rank == 0 and file >= 6)  # g1, h1
+                    white_queenside_castle = (rank == 0 and file <= 2)  # a1, b1, c1
+                    black_kingside_castle = (rank == 7 and file >= 6)  # g8, h8
+                    black_queenside_castle = (rank == 7 and file <= 2)  # a8, b8, c8
+                    
+                    # Award points for proper castling positions
+                    if piece.color == chess.WHITE:
+                        if white_kingside_castle and self._board.has_kingside_castling_rights(chess.WHITE):
+                            king_safety += 100
+                        elif white_queenside_castle and self._board.has_queenside_castling_rights(chess.WHITE):
+                            king_safety += 100
+                    else:  # Black
+                        if black_kingside_castle and self._board.has_kingside_castling_rights(chess.BLACK):
+                            king_safety += 100
+                        elif black_queenside_castle and self._board.has_queenside_castling_rights(chess.BLACK):
+                            king_safety += 100
+                    
+                    # Penalize kings in the center
+                    center_files = [3, 4]  # d and e files
+                    if file in center_files:
+                        king_safety -= 50 * multiplier
+        
+        # Mobility evaluation
+        for square in chess.SQUARES:
+            piece = self._board.piece_at(square)
+            if piece:
+                mobility_value = len(self._board.attacks(square))
+                mobility += mobility_value * (1 if piece.color == chess.WHITE else -1)
+        
+        # Normalize mobility score
+        mobility = mobility * 0.1
+        
+        # Calculate final score
+        total_score = (material / 100.0 +  # Convert centipawns to pawns
+                      positional / 100.0 +
+                      mobility +
+                      center / 100.0 +
+                      king_safety / 100.0)
+        
+        return EngineAnalysis(
+            score=total_score,
+            material_balance=material / 100.0,
+            positional_score=positional / 100.0,
+            mobility_score=mobility,
+            center_control=center / 100.0,
+            king_safety=king_safety / 100.0
+        )
+    
+    def get_attacked_squares(self, square: chess.Square) -> chess.SquareSet:
+        """Get squares that can be legally attacked by piece at given square.
+        This excludes squares occupied by friendly pieces but includes squares with enemy pieces."""
         piece = self._board.piece_at(square)
         if not piece:
-            return set()
-        return self._board.attacks(square)
+            return chess.SquareSet()
+            
+        attacks = self._board.attacks(square)
+        # Remove squares occupied by friendly pieces
+        friendly_pieces = self._board.occupied_co[piece.color]
+        return attacks & ~friendly_pieces  # Bitwise operations to exclude friendly pieces
     
     def get_piece_at(self, square: chess.Square) -> Optional[chess.Piece]:
         """Get piece at given square"""
-        if not self._board:
-            return None
         return self._board.piece_at(square)
     
     def get_piece_map(self) -> Dict[chess.Square, chess.Piece]:
         """Get map of all pieces on the board"""
-        if not self._board:
-            return {}
         return self._board.piece_map()
     
     def is_attacked_by(self, color: bool, square: chess.Square) -> bool:
         """Check if square is attacked by given color"""
-        if not self._board:
-            return False
         return self._board.is_attacked_by(color, square)
-    
-    def make_move(self, move: str) -> None:
-        """Make a move on the internal board"""
-        if not self._board:
-            return
-        self._board.push(chess.Move.from_uci(move))
-    
-    def copy_board(self) -> chess.Board:
-        """Get a copy of the current board state"""
-        if not self._board:
-            return chess.Board()
-        return self._board.copy()
-    
-    def get_legal_moves(self) -> List[chess.Move]:
-        """Get list of legal moves in current position"""
-        if not self._board:
-            return []
-        return list(self._board.legal_moves)
     
     def get_turn(self) -> bool:
         """Get current side to move (True for white, False for black)"""
-        if not self._board:
-            return True
         return self._board.turn
-
+    
     def parse_square(self, square: str) -> chess.Square:
         """Parse a square from a string"""
         return chess.parse_square(square)
@@ -303,3 +234,8 @@ class SunfishEngine:
     def square_rank(self, square: chess.Square) -> int:
         """Get the rank index of a square"""
         return chess.square_rank(square)
+    
+    def get_potential_attacks(self, square: chess.Square) -> chess.SquareSet:
+        """Get all squares that could be attacked by piece at given square, regardless of legality.
+        This includes squares occupied by friendly pieces and moves that might not be legal due to pins or checks."""
+        return self._board.attacks(square)
