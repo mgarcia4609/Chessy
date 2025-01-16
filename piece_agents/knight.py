@@ -2,17 +2,15 @@
 from typing import List, Optional
 
 from .base_agent import ChessPieceAgent, TacticalOpportunity
-from debate_system.protocols import Position, EngineAnalysis, EmotionalState
-from chess_engine.sunfish_wrapper import SunfishEngine
+from debate_system.protocols import Position, EngineAnalysis, EmotionalState, PersonalityConfig
+from chess_engine.sunfish_wrapper import ChessEngine
 
 
 class KnightAgent(ChessPieceAgent):
     """A modern Don Quixote of the chessboard - seeing grand adventures in tactical opportunities"""
     
-    def __init__(self, engine: SunfishEngine, personality, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality)
-        self.emotional_state = emotional_state or EmotionalState()
-        self._tactical_cache = {}
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
+        super().__init__(engine, personality, emotional_state)
         self._quest_counter = 0  # Track our noble quests
         
     def _calculate_weighted_score(self, analysis: EngineAnalysis) -> float:
@@ -88,7 +86,7 @@ class KnightAgent(ChessPieceAgent):
         
         # Add mobility considerations
         knight_square = self.engine.parse_square(move[2:4])
-        attacked_squares = self._get_attacked_squares(self.engine.board, knight_square)
+        attacked_squares = self._get_attacked_squares(knight_square)
         mobility = len(attacked_squares)
         
         if mobility >= 6:

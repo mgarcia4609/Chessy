@@ -17,6 +17,7 @@ from debate_system.protocols import (
 )
 from piece_agents.base_agent import ChessPieceAgent
 from piece_agents.personality_factory import PersonalityFactory
+from piece_agents.piece_factory import PieceAgentFactory
 
 
 @dataclass
@@ -39,7 +40,7 @@ class AgentCaretaker:
             self.history[piece_type] = []
             
         memento = AgentMemento(
-            personality_state=agent.get_personality_state(),
+            personality_state=agent.personality,
             emotional_state=agent.emotional_state,
             interaction_history=agent.recent_interactions,
             timestamp=turn
@@ -171,14 +172,8 @@ class DebateModerator:
         factory = PersonalityFactory()
         personalities = factory.create_all_personalities()
         
-        pieces = {}
-        for piece_type, personality in personalities.items():
-            piece_engine = ChessEngine.create_new()
-            pieces[piece_type] = ChessPieceAgent(
-                engine=piece_engine,
-                personality=personality
-            )
-
+        # Create concrete piece agents
+        pieces = PieceAgentFactory.create_all_agents(personalities, engine)
         return cls(pieces)
     
     @classmethod
@@ -189,10 +184,8 @@ class DebateModerator:
         
         for piece_type in ['P', 'N', 'B', 'R', 'Q', 'K']:
             personality = factory.create_themed_personality(piece_type, theme)
-            piece_engine = ChessEngine.create_new()
-            pieces[piece_type] = ChessPieceAgent(
-                engine=piece_engine,
-                personality=personality
+            pieces[piece_type] = PieceAgentFactory.create_agent(
+                piece_type, personality, ChessEngine.create_new()
             )
             
         return cls(pieces)

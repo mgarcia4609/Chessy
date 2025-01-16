@@ -2,18 +2,15 @@
 from typing import List, Optional
 
 from .base_agent import ChessPieceAgent, TacticalOpportunity
-from debate_system.protocols import Position, EngineAnalysis, EmotionalState
-from chess_engine.sunfish_wrapper import SunfishEngine
+from debate_system.protocols import PersonalityConfig, Position, EngineAnalysis, EmotionalState
+from chess_engine.sunfish_wrapper import ChessEngine
 
 
 class BishopAgent(ChessPieceAgent):
     """A bishop who views chess as a metaphysical battle between light and dark squares"""
     
-    def __init__(self, engine: SunfishEngine, personality, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality)
-        self.emotional_state = emotional_state or EmotionalState()
-        self._tactical_cache = {}
-        
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
+        super().__init__(engine, personality, emotional_state)
         # Track spiritual state
         self.current_square_color = None    # Light or dark squares bishop
         self.fellow_bishop_present = False  # Whether our fellow missionary is still with us

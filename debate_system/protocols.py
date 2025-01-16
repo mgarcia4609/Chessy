@@ -1,6 +1,6 @@
 """Protocols and data structures for the debate chess system"""
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 
@@ -257,10 +257,9 @@ class InteractionProfile:
 @dataclass
 class GameMemory:
     """Tracks significant game events and their emotional impact"""
-    
-    key_moments: List[GameMoment]
-    narrative_threads: Dict[str, List[str]]  # Piece -> their story
-    emotional_triggers: Dict[str, List[Trigger]]  # What affects each piece
+    key_moments: List[GameMoment] = field(default_factory=list)
+    narrative_threads: Dict[str, List[str]] = field(default_factory=dict)
+    emotional_triggers: Dict[str, List[Trigger]] = field(default_factory=dict)
     
     def record_moment(self, position: Position, move: str, 
                      emotional_impact: Dict[str, float]):
@@ -269,28 +268,58 @@ class GameMemory:
             position=position,
             move=move,
             impact=emotional_impact,
-            turn=len(self.key_moments) + 1
+            turn=len(self.key_moments) + 1,
+            narrative="",  # Will be generated
+            participants=[]  # Will be determined
         )
         self.key_moments.append(moment)
         
         # Update narrative threads
-        piece = self.get_moving_piece(move)
+        piece = move[0]  # Get piece type from move
+        if piece not in self.narrative_threads:
+            self.narrative_threads[piece] = []
         self.narrative_threads[piece].append(
             self.generate_moment_narrative(moment))
         
         # Update emotional triggers
         if abs(max(emotional_impact.values())) > 0.2:
+            if piece not in self.emotional_triggers:
+                self.emotional_triggers[piece] = []
             self.emotional_triggers[piece].append(
-                Trigger(position.pattern, emotional_impact))
+                Trigger(
+                    pattern=position.fen,  # Simplified for now
+                    impacts=emotional_impact,
+                    memory=self.generate_moment_narrative(moment),
+                    turn=len(self.key_moments)
+                )
+            )
+    
+    def generate_moment_narrative(self, moment: GameMoment) -> str:
+        """Generate narrative description of a moment"""
+        # Simplified for now
+        return f"Turn {moment.turn}: Move {moment.move} played"
     
     def generate_argument_context(self, piece: str, 
                                 position: Position) -> str:
         """Generate contextual argument based on piece's history"""
-        relevant_moments = self.find_relevant_moments(piece, position)
-        emotional_state = self.calculate_current_emotion(piece)
+        # Get piece's narrative thread
+        thread = self.narrative_threads.get(piece, [])
         
-        return self.generate_narrative(
-            piece, relevant_moments, emotional_state)
+        # Get relevant triggers
+        triggers = self.emotional_triggers.get(piece, [])
+        active_triggers = [
+            t for t in triggers
+            if t.pattern in position.fen  # Simplified pattern matching
+        ]
+        
+        # Combine into context
+        context = []
+        if thread:
+            context.append(f"Remembering: {thread[-1]}")
+        if active_triggers:
+            context.append(f"Feeling: {active_triggers[-1].memory}")
+            
+        return " ".join(context) if context else ""
 
 @dataclass
 class PsychologicalState:

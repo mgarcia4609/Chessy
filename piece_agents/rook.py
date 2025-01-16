@@ -1,10 +1,11 @@
 """A rook that's usually paralyzed by anxiety but becomes gloriously unhinged when destiny calls"""
-from typing import List, Optional, Set
+from typing import List, Optional
 from dataclasses import dataclass
+import chess
 
 from .base_agent import ChessPieceAgent, TacticalOpportunity
-from debate_system.protocols import Position, EngineAnalysis, EmotionalState
-from chess_engine.sunfish_wrapper import SunfishEngine, ChessConstants
+from debate_system.protocols import Position, EngineAnalysis, EmotionalState, PersonalityConfig
+from chess_engine.sunfish_wrapper import ChessEngine
 
 
 @dataclass
@@ -28,10 +29,8 @@ class GloryMetrics:
 class RookAgent(ChessPieceAgent):
     """A rook that's usually paralyzed by anxiety but becomes gloriously unhinged when destiny calls"""
     
-    def __init__(self, engine: SunfishEngine, personality, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality)
-        self.emotional_state = emotional_state or EmotionalState()
-        self._tactical_cache = {}
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
+        super().__init__(engine, personality, emotional_state)
         
         # Track current state
         self.comfort = ComfortMetrics(0.0, 0, 0.0, 0)
@@ -73,7 +72,7 @@ class RookAgent(ChessPieceAgent):
         """Update metrics tracking rook's anxiety levels"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.ROOK and 
+            if (piece and piece.piece_type == chess.ROOK and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -130,7 +129,7 @@ class RookAgent(ChessPieceAgent):
         """Update metrics tracking opportunities for heroic action"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.ROOK and 
+            if (piece and piece.piece_type == chess.ROOK and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -166,7 +165,7 @@ class RookAgent(ChessPieceAgent):
         enemy_king_exposed = False
         for sq in back_rank_squares:
             piece = self.engine.get_piece_at(sq)
-            if piece and piece.piece_type == ChessConstants.KING and piece.color == enemy_color:
+            if piece and piece.piece_type == chess.KING and piece.color == enemy_color:
                 enemy_king_exposed = True
                 break
                 

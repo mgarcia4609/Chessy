@@ -4,7 +4,7 @@ import chess
 import chess.pgn
 from datetime import datetime
 
-from chess_engine.sunfish_wrapper import SunfishEngine
+from chess_engine.sunfish_wrapper import ChessEngine
 from debate_system.moderator import DebateModerator
 from debate_system.protocols import Position, MoveProposal
 
@@ -13,7 +13,7 @@ class DebateChessGame:
 
     def __init__(self):
         print("Initializing DebateChessGame...")
-        self.engine = SunfishEngine.create_new()
+        self.engine = ChessEngine()
         self.moderator = DebateModerator.create_default(self.engine)
         print("DebateModerator created")
         

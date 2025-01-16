@@ -238,3 +238,7 @@ class ChessEngine:
         """Get all squares that could be attacked by piece at given square, regardless of legality.
         This includes squares occupied by friendly pieces and moves that might not be legal due to pins or checks."""
         return self._board.attacks(square)
+
+    def square(self, file: int, rank: int) -> chess.Square:
+        """Get the square at given file and rank"""
+        return chess.square(file, rank)

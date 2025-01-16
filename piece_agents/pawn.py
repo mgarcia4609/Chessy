@@ -1,19 +1,17 @@
 """A revolutionary pawn, caught between collective action and dreams of promotion"""
 from typing import List, Optional
+import chess
 
 from .base_agent import ChessPieceAgent, TacticalOpportunity
-from debate_system.protocols import Position, EngineAnalysis, EmotionalState
-from chess_engine.sunfish_wrapper import SunfishEngine, ChessConstants
+from debate_system.protocols import Position, EngineAnalysis, EmotionalState, PersonalityConfig
+from chess_engine.sunfish_wrapper import ChessEngine
 
 
 class PawnAgent(ChessPieceAgent):
     """A pawn whose revolutionary zeal masks personal ambitions"""
     
-    def __init__(self, engine: SunfishEngine, personality, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality)
-        self.emotional_state = emotional_state or EmotionalState()
-        self._tactical_cache = {}
-        
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
+        super().__init__(engine, personality, emotional_state)
         # Track revolutionary state
         self.rank = None                   # Current rank (measure of progress toward promotion)
         self.fellow_pawns_nearby = 0       # Number of allied pawns in support
@@ -55,7 +53,7 @@ class PawnAgent(ChessPieceAgent):
         """Check if we have adjacent pawns supporting our struggle"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.PAWN and 
+            if (piece and piece.piece_type == chess.PAWN and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -74,7 +72,7 @@ class PawnAgent(ChessPieceAgent):
                     if 0 <= adj_rank <= 7:
                         square = self.engine.square(adj_file, adj_rank)
                         piece = self.engine.get_piece_at(square)
-                        if piece and piece.piece_type == ChessConstants.PAWN and piece.color == self.engine.get_turn():
+                        if piece and piece.piece_type == chess.PAWN and piece.color == self.engine.get_turn():
                             nearby_pawns += 1
                             
         self.fellow_pawns_nearby = nearby_pawns
@@ -84,7 +82,7 @@ class PawnAgent(ChessPieceAgent):
         """Check if we're impeding the movement of 'bourgeois' pieces"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.PAWN and 
+            if (piece and piece.piece_type == chess.PAWN and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -94,7 +92,7 @@ class PawnAgent(ChessPieceAgent):
             
         # Check if we're in the way of any non-pawn enemy pieces
         for square, piece in self.engine.get_piece_map().items():
-            if piece and piece.color != self.engine.get_turn() and piece.piece_type != ChessConstants.PAWN:
+            if piece and piece.color != self.engine.get_turn() and piece.piece_type != chess.PAWN:
                 if piece_square in self.engine.get_attacked_squares(square):
                     return True
         return False
@@ -103,7 +101,7 @@ class PawnAgent(ChessPieceAgent):
         """Calculate how close we are to promotion (and personal glory)"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.PAWN and 
+            if (piece and piece.piece_type == chess.PAWN and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break

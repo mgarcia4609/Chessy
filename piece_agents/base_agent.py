@@ -1,9 +1,9 @@
-from dataclasses import dataclass
-from typing import List, Set, TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import List, Set, TYPE_CHECKING, Dict
 import chess
 
 from chess_engine.sunfish_wrapper import ChessEngine
-from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig
+from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig, EmotionalState
 
 if TYPE_CHECKING:
     import chess
@@ -25,11 +25,14 @@ class ChessPieceAgent:
     """Base class for chess piece agents"""
     engine: ChessEngine
     personality: PersonalityConfig
-    
-    def __post_init__(self):
-        """Initialize the engine with personality settings"""
-        for option, value in self.personality.options.items():
-            self.engine.set_option(option, value)
+    emotional_state: EmotionalState
+    _tactical_cache: Dict[str, List[TacticalOpportunity]] = field(default_factory=dict)
+
+    #TODO: add post init for fancier engines with more options
+    # def __post_init__(self):
+    #     """Initialize the engine with personality settings"""
+    #     for option, value in self.personality.options.items():
+    #         self.engine.set_option(option, value)
     
     def evaluate_move(self, position: Position, move: str, think_time: int = 500) -> MoveProposal:
         """Evaluate a potential move
@@ -45,25 +48,25 @@ class ChessPieceAgent:
         # Set up position in engine
         self.engine.set_position(position.fen, position.move_history)
         
+        # Make the move
+        self.engine.make_move(move)
+        
         # Analyze the position after the move
-        best_move, analyses = self.engine.go(movetime=think_time)
+        analyses = self.engine.evaluate_position()
         
-        # Get the final/deepest analysis
-        final_analysis = analyses[-1] if analyses else None
-        
-        if not final_analysis:
+        if not analyses:
             return None
             
         # Calculate weighted score based on personality
-        weighted_score = self._calculate_weighted_score(final_analysis)
+        weighted_score = self._calculate_weighted_score(analyses)
         
         # Generate argument based on personality and analysis
-        argument = self._generate_argument(position, move, final_analysis)
+        argument = self._generate_argument(position, move, analyses)
         
         return MoveProposal(
             move=move,
             score=weighted_score,
-            analysis=final_analysis,
+            analysis=analyses,
             argument=argument
         )
     

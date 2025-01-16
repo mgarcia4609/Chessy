@@ -1,19 +1,16 @@
 """A powerful but emotionally volatile queen, torn between grandeur and self-doubt"""
 from typing import List, Optional
-
+import chess
 from .base_agent import ChessPieceAgent, TacticalOpportunity
-from debate_system.protocols import Position, EngineAnalysis, EmotionalState
-from chess_engine.sunfish_wrapper import SunfishEngine, ChessConstants
+from debate_system.protocols import Position, EngineAnalysis, EmotionalState, PersonalityConfig
+from chess_engine.sunfish_wrapper import ChessEngine
 
 
 class QueenAgent(ChessPieceAgent):
     """A queen whose immense power is matched only by her emotional turbulence"""
     
-    def __init__(self, engine: SunfishEngine, personality, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality)
-        self.emotional_state = emotional_state or EmotionalState()
-        self._tactical_cache = {}
-        
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
+        super().__init__(engine, personality, emotional_state)
         # Track royal state
         self.pieces_threatened = 0     # Number of pieces we're currently threatening
         self.center_control = 0.0      # How much of the center we control (0-1)
@@ -67,7 +64,7 @@ class QueenAgent(ChessPieceAgent):
         """Calculate how much central influence we have"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.QUEEN and 
+            if (piece and piece.piece_type == chess.QUEEN and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -76,7 +73,7 @@ class QueenAgent(ChessPieceAgent):
             return 0.0
             
         # Define central squares
-        central_squares = {ChessConstants.E4, ChessConstants.D4, ChessConstants.E5, ChessConstants.D5}
+        central_squares = {chess.E4, chess.D4, chess.E5, chess.D5}
         
         # Get our attacked squares
         attacked = self.engine.get_attacked_squares(piece_square)
@@ -89,7 +86,7 @@ class QueenAgent(ChessPieceAgent):
         """Count how many enemy pieces we're threatening"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.QUEEN and 
+            if (piece and piece.piece_type == chess.QUEEN and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -107,7 +104,7 @@ class QueenAgent(ChessPieceAgent):
         """Calculate how much enemy attention we're getting"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == ChessConstants.QUEEN and 
+            if (piece and piece.piece_type == chess.QUEEN and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
