@@ -163,6 +163,9 @@ class MoveProposal:
     score: float
     analysis: 'EngineAnalysis'
     argument: str
+    interaction_type: Optional[InteractionType] = None
+    tactical_context: Dict[str, bool] = field(default_factory=dict)  # captures, checks, etc
+    affected_pieces: List[str] = field(default_factory=list)  # pieces involved in the move
 
 @dataclass
 class DebateRound:
@@ -275,6 +278,7 @@ class GameMemory:
         self.key_moments.append(moment)
         
         # Update narrative threads
+        print(f"moment: {moment}")
         piece = move[0]  # Get piece type from move
         if piece not in self.narrative_threads:
             self.narrative_threads[piece] = []
@@ -338,22 +342,39 @@ class PsychologicalState:
             'leadership': self.leadership
         }
 
-    def simulate_psychological_impact(self, move: str) -> Dict[str, float]:
+    def simulate_psychological_impact(self, proposal: MoveProposal) -> Dict[str, float]:
         """Predict how a move will affect team psychology"""
+        if not proposal:
+            return {}
+        
         impacts = {}
         
-        # Material impact
-        if self.is_capture(move):
+        # Base impact on interaction type
+        if proposal.interaction_type == InteractionType.SACRIFICE:
+            impacts['morale'] = 0.2  # Heroic sacrifice boosts morale
+            impacts['cohesion'] = 0.15  # Team admires the sacrifice
+            
+        elif proposal.interaction_type == InteractionType.COMPETITION:
             impacts['morale'] = -0.1  # Loss of material hurts morale
+            impacts['cohesion'] = -0.05  # Some tension from the capture
             
-        # Position impact
-        if self.is_retreat(move):
-            impacts['confidence'] = -0.05
+        elif proposal.interaction_type == InteractionType.COOPERATION:
+            impacts['coordination'] = 0.15  # Better tactical coordination
+            impacts['cohesion'] = 0.1  # Working together builds trust
             
-        # Relationship impact
-        if self.is_sacrifice(move):
-            piece = self.get_sacrificed_piece(move)
-            impacts[f'trust_{piece}'] = -0.2
+        elif proposal.interaction_type == InteractionType.SUPPORT:
+            impacts['morale'] = 0.05  # Supporting moves boost spirits
+            impacts['leadership'] = 0.1  # Good coordination shows leadership
+            
+        # Additional impacts based on tactical context
+        if proposal.tactical_context.get('is_check'):
+            impacts['confidence'] = 0.1  # Attacking the king boosts confidence
+            
+        if proposal.tactical_context.get('gives_discovered_attack'):
+            impacts['coordination'] = 0.2  # Complex tactics show good coordination
+            
+        if proposal.tactical_context.get('is_promotion'):
+            impacts['morale'] = 0.3  # Promotions are very exciting!
             
         return impacts
 

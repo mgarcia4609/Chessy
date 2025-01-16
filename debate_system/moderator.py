@@ -203,9 +203,9 @@ class DebateModerator:
         self.debate_history.append(debate)
         self.game_memory.record_moment(
             position=position,
-            move=debate.winning_proposal.move if debate.winning_proposal else "",
+            move=debate.winning_proposal if debate.winning_proposal else "",
             emotional_impact=self.psychological_state.simulate_psychological_impact(
-                debate.winning_proposal.move if debate.winning_proposal else ""
+                debate.winning_proposal if debate.winning_proposal else ""
             )
         )
         

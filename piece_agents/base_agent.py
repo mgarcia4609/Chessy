@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
-from typing import List, Set, TYPE_CHECKING, Dict
+from typing import List, Set, TYPE_CHECKING, Dict, Tuple
 import chess
 
-from chess_engine.sunfish_wrapper import ChessEngine
-from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig, EmotionalState, Interaction
+from chess_engine.sunfish_wrapper import ChessEngine, MoveContext
+from debate_system.protocols import InteractionType, Position, MoveProposal, EngineAnalysis, PersonalityConfig, EmotionalState, Interaction
 
 if TYPE_CHECKING:
     import chess
@@ -49,6 +49,9 @@ class ChessPieceAgent:
         # Set up position in engine
         self.engine.set_position(position.fen, position.move_history)
         
+        # Get move context before making the move
+        context = self.engine.analyze_move_context(move)
+        
         # Make the move
         self.engine.make_move(move)
         
@@ -61,14 +64,34 @@ class ChessPieceAgent:
         # Calculate weighted score based on personality
         weighted_score = self._calculate_weighted_score(analyses)
         
-        # Generate argument based on personality and analysis
+        # Find tactical opportunities
+        opportunities = self._find_tactical_opportunities(position, move)
+        
+        # Determine interaction type and affected pieces
+        interaction_type, affected_pieces = self._analyze_interaction(context, opportunities)
+        
+        # Create tactical context dictionary
+        tactical_context = {
+            'is_capture': context.is_capture,
+            'is_check': context.is_check,
+            'is_castle': context.is_castle,
+            'gives_discovered_attack': context.gives_discovered_attack,
+            'is_promotion': context.is_promotion,
+            'has_fork': any(opp.type == 'fork' for opp in opportunities),
+            'has_discovered_attack': any(opp.type == 'discovered_attack' for opp in opportunities)
+        }
+        
+        # Generate argument based on personality, analysis, and context
         argument = self._generate_argument(position, move, analyses)
         
         return MoveProposal(
             move=move,
             score=weighted_score,
             analysis=analyses,
-            argument=argument
+            argument=argument,
+            interaction_type=interaction_type,
+            tactical_context=tactical_context,
+            affected_pieces=affected_pieces
         )
     
     def _calculate_weighted_score(self, analysis: EngineAnalysis) -> float:
@@ -334,3 +357,38 @@ class ChessPieceAgent:
         raise NotImplementedError(
             "Specific piece agents must implement _generate_argument"
         )
+
+    def _analyze_interaction(self, context: MoveContext, 
+                           opportunities: List[TacticalOpportunity]) -> Tuple[InteractionType, List[str]]:
+        """Analyze the social/emotional implications of a move"""
+        affected_pieces = [context.piece_type]
+        
+        # Handle captures
+        if context.is_capture:
+            affected_pieces.append(context.captured_piece_type)
+            # Is it a sacrifice?
+            if context.gives_discovered_attack or context.is_check:
+                return InteractionType.SACRIFICE, affected_pieces
+            return InteractionType.COMPETITION, affected_pieces
+            
+        # Handle castling (cooperation between king and rook)
+        if context.is_castle:
+            affected_pieces.append('R')  # Rook is involved
+            return InteractionType.COOPERATION, affected_pieces
+            
+        # Handle discovered attacks and forks (usually cooperative tactics)
+        if opportunities:
+            for opp in opportunities:
+                affected_pieces.extend(p.symbol().upper() for p in opp.target_pieces)
+            if any(opp.type == 'discovered_attack' for opp in opportunities):
+                return InteractionType.COOPERATION, list(set(affected_pieces))
+            if any(opp.type == 'fork' for opp in opportunities):
+                return InteractionType.COMPETITION, list(set(affected_pieces))
+            
+        # Handle promotions (pawn achieving greatness)
+        if context.is_promotion:
+            affected_pieces.append(context.promotion_piece_type.upper())
+            return InteractionType.SUPPORT, list(set(affected_pieces))
+            
+        # Default to support (basic developing/positioning moves)
+        return InteractionType.SUPPORT, list(set(affected_pieces))

@@ -29,6 +29,22 @@ class EngineAnalysis:
                 f"King Safety: {self.king_safety:.2f})")
 
 
+@dataclass
+class MoveContext:
+    """Detailed chess context for a move"""
+    is_capture: bool
+    is_check: bool
+    is_castle: bool
+    piece_type: str
+    captured_piece_type: Optional[str]
+    source_square: str
+    target_square: str
+    is_promotion: bool
+    promotion_piece_type: Optional[str]
+    is_en_passant: bool
+    gives_discovered_attack: bool
+
+
 class ChessEngine:
     """Simple chess engine wrapper using python-chess"""
     
@@ -242,3 +258,57 @@ class ChessEngine:
     def square(self, file: int, rank: int) -> chess.Square:
         """Get the square at given file and rank"""
         return chess.square(file, rank)
+
+    def analyze_move_context(self, move: str) -> MoveContext:
+        """Analyze chess-specific implications of a move"""
+        # Parse move
+        source_square = move[:2]
+        target_square = move[2:4]
+        promotion_piece = move[4] if len(move) > 4 else None
+
+        # Store current position
+        before = self._board.copy()
+        chess_move = chess.Move.from_uci(move)
+        
+        # Get piece info before move
+        piece = before.piece_at(chess.parse_square(source_square))
+        captured = before.piece_at(chess.parse_square(target_square))
+        
+        # Make move to analyze resulting position
+        self._board.push(chess_move)
+        
+        context = MoveContext(
+            is_capture=before.is_capture(chess_move),
+            is_check=self._board.is_check(),
+            is_castle=before.is_castling(chess_move),
+            piece_type=piece.symbol() if piece else '',
+            captured_piece_type=captured.symbol() if captured else None,
+            source_square=source_square,
+            target_square=target_square,
+            is_promotion=chess_move.promotion is not None,
+            promotion_piece_type=chess.piece_name(chess_move.promotion) if chess_move.promotion else None,
+            is_en_passant=before.is_en_passant(chess_move),
+            gives_discovered_attack=self._check_discovered_attacks(before, chess_move)
+        )
+        
+        # Restore position
+        self._board.pop()
+        return context
+        
+    def _check_discovered_attacks(self, position: chess.Board, move: chess.Move) -> bool:
+        """Check if move reveals any discovered attacks"""
+        # Make move
+        position.push(move)
+        
+        # Look for any new attacks that weren't possible before
+        has_discovered = False
+        for square in chess.SQUARES:
+            if position.is_attacked_by(not position.turn, square):
+                # Check if this attack wasn't possible before
+                position.pop()
+                if not position.is_attacked_by(not position.turn, square):
+                    has_discovered = True
+                position.push(move)
+                
+        position.pop()
+        return has_discovered
