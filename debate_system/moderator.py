@@ -42,7 +42,7 @@ class AgentCaretaker:
         memento = AgentMemento(
             personality_state=agent.personality,
             emotional_state=agent.emotional_state,
-            interaction_history=agent.recent_interactions,
+            interaction_history=agent._recent_interactions,
             timestamp=turn
         )
         self.history[piece_type].append(memento)
@@ -185,7 +185,7 @@ class DebateModerator:
         for piece_type in ['P', 'N', 'B', 'R', 'Q', 'K']:
             personality = factory.create_themed_personality(piece_type, theme)
             pieces[piece_type] = PieceAgentFactory.create_agent(
-                piece_type, personality, ChessEngine.create_new()
+                piece_type, personality, ChessEngine()
             )
             
         return cls(pieces)

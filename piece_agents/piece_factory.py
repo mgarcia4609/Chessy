@@ -10,6 +10,7 @@ from .rook import RookAgent
 from .queen import QueenAgent
 from .king import KingAgent
 from .pawn import PawnAgent
+from .emotional_state_defaults import DEFAULT_EMOTIONAL_STATES
 
 class PieceAgentFactory:
     """Creates concrete piece agents with appropriate personalities"""
@@ -32,7 +33,12 @@ class PieceAgentFactory:
             raise ValueError(f"No agent type for piece: {piece_type}")
             
         agent_class = cls.AGENT_TYPES[piece_type]
-        return agent_class(engine=engine, personality=personality)
+        agent = agent_class(engine=engine, personality=personality)
+        
+        # Initialize emotional state
+        agent.emotional_state = DEFAULT_EMOTIONAL_STATES[piece_type]
+        
+        return agent
     
     @classmethod
     def create_all_agents(cls, personalities: Dict[str, PersonalityConfig],

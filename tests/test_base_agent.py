@@ -2,7 +2,7 @@ import pytest
 import chess
 from chess_engine.sunfish_wrapper import ChessEngine, EngineAnalysis
 from piece_agents.base_agent import ChessPieceAgent, TacticalOpportunity
-from debate_system.protocols import PersonalityConfig, Position
+from debate_system.protocols import EmotionalState, PersonalityConfig, Position
 
 @pytest.fixture
 def engine():
@@ -24,7 +24,7 @@ def default_personality():
 @pytest.fixture
 def base_agent(engine, default_personality):
     """Create a base agent instance"""
-    return ChessPieceAgent(engine=engine, personality=default_personality)
+    return ChessPieceAgent(engine=engine, personality=default_personality, emotional_state=EmotionalState())
 
 def test_tactical_opportunity_creation():
     """Test creating tactical opportunities"""
@@ -95,7 +95,7 @@ def test_calculate_weighted_score(base_agent):
         risk_tolerance=0.7,
         options={}
     )
-    tactical_agent = ChessPieceAgent(engine=base_agent.engine, personality=tactical_personality)
+    tactical_agent = ChessPieceAgent(engine=base_agent.engine, personality=tactical_personality, emotional_state=EmotionalState())
     tactical_score = tactical_agent._calculate_weighted_score(analysis)
     assert tactical_score > score  # Should value tactical advantages more
     
@@ -108,7 +108,7 @@ def test_calculate_weighted_score(base_agent):
         risk_tolerance=0.3,
         options={}
     )
-    positional_agent = ChessPieceAgent(engine=base_agent.engine, personality=positional_personality)
+    positional_agent = ChessPieceAgent(engine=base_agent.engine, personality=positional_personality, emotional_state=EmotionalState())
     positional_score = positional_agent._calculate_weighted_score(analysis)
     assert positional_score < tactical_score  # Should be more conservative 
 

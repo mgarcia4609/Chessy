@@ -3,7 +3,7 @@ from typing import List, Set, TYPE_CHECKING, Dict
 import chess
 
 from chess_engine.sunfish_wrapper import ChessEngine
-from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig, EmotionalState
+from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig, EmotionalState, Interaction
 
 if TYPE_CHECKING:
     import chess
@@ -26,6 +26,7 @@ class ChessPieceAgent:
     engine: ChessEngine
     personality: PersonalityConfig
     emotional_state: EmotionalState
+    _recent_interactions: List[Interaction] = field(default_factory=list)
     _tactical_cache: Dict[str, List[TacticalOpportunity]] = field(default_factory=dict)
 
     #TODO: add post init for fancier engines with more options
