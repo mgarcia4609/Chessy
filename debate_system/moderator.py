@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Protocol, Optional
 from abc import ABC, abstractmethod
 
-from chess_engine.sunfish_wrapper import SunfishEngine
+from chess_engine.sunfish_wrapper import ChessEngine
 from debate_system.protocols import (
     DebateRound,
     MoveProposal,
@@ -166,14 +166,14 @@ class DebateModerator:
             self.interaction_mediator.register(piece)
 
     @classmethod
-    def create_default(cls, engine: SunfishEngine) -> 'DebateModerator':
+    def create_default(cls, engine: ChessEngine) -> 'DebateModerator':
         """Create a moderator with default pieces"""
         factory = PersonalityFactory()
         personalities = factory.create_all_personalities()
         
         pieces = {}
         for piece_type, personality in personalities.items():
-            piece_engine = SunfishEngine.create_new()
+            piece_engine = ChessEngine.create_new()
             pieces[piece_type] = ChessPieceAgent(
                 engine=piece_engine,
                 personality=personality
@@ -182,14 +182,14 @@ class DebateModerator:
         return cls(pieces)
     
     @classmethod
-    def create_themed(cls, engine: SunfishEngine, theme: str) -> 'DebateModerator':
+    def create_themed(cls, engine: ChessEngine, theme: str) -> 'DebateModerator':
         """Create a moderator with themed piece personalities"""
         factory = PersonalityFactory()
         pieces = {}
         
         for piece_type in ['P', 'N', 'B', 'R', 'Q', 'K']:
             personality = factory.create_themed_personality(piece_type, theme)
-            piece_engine = SunfishEngine.create_new()
+            piece_engine = ChessEngine.create_new()
             pieces[piece_type] = ChessPieceAgent(
                 engine=piece_engine,
                 personality=personality
