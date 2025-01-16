@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from typing import List, Set, TYPE_CHECKING
+import chess
 
-from chess_engine.sunfish_wrapper import SunfishEngine
+from chess_engine.sunfish_wrapper import ChessEngine
 from debate_system.protocols import Position, MoveProposal, EngineAnalysis, PersonalityConfig
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ class TacticalOpportunity:
 @dataclass
 class ChessPieceAgent:
     """Base class for chess piece agents"""
-    engine: SunfishEngine
+    engine: ChessEngine
     personality: PersonalityConfig
     
     def __post_init__(self):
@@ -72,22 +73,29 @@ class ChessPieceAgent:
         This is where different piece personalities can emphasize different aspects
         of the position (tactical vs positional, risk vs safety, etc)
         """
-        base_score = analysis.score
+        # Tactical component includes material and mobility
+        tactical_score = (analysis.material_balance + analysis.mobility_score) * self.personality.tactical_weight
         
-        # Apply personality weights
-        tactical_component = base_score * self.personality.tactical_weight
-        positional_bonus = (analysis.depth * 10) * self.personality.positional_weight
+        # Positional component includes position quality, center control, and king safety
+        positional_score = (
+            analysis.positional_score + 
+            analysis.center_control + 
+            analysis.king_safety
+        ) * self.personality.positional_weight
+        
+        # Combine scores
+        base_score = tactical_score + positional_score
         
         # Risk adjustment based on personality
         risk_factor = 1.0
         if base_score > 0:
             # Winning positions - aggressive personalities push harder
-            risk_factor += (self.personality.risk_tolerance - 0.5) * 0.5
+            risk_factor += (self.personality.risk_tolerance - 0.5) * 0.2  # Reduced from 0.5
         else:
             # Losing positions - cautious personalities defend harder
-            risk_factor += (0.5 - self.personality.risk_tolerance) * 0.5
+            risk_factor += (0.5 - self.personality.risk_tolerance) * 0.2  # Reduced from 0.5
             
-        return (tactical_component + positional_bonus) * risk_factor
+        return base_score * risk_factor
     
     def _get_attacked_squares(self, square: chess.Square) -> Set[chess.Square]:
         """Get squares attacked by piece at given square"""
@@ -122,14 +130,26 @@ class ChessPieceAgent:
 
     def _find_forks(self, piece_square: chess.Square, 
                     attacked_squares: Set[chess.Square]) -> List[TacticalOpportunity]:
-        """Find fork opportunities where piece attacks multiple valuable pieces"""
+        """Find fork opportunities where piece attacks multiple valuable pieces.
+        
+        Args:
+            piece_square: Square where our piece is after the move
+            attacked_squares: Squares that our piece attacks
+            
+        Note: This is called AFTER making our move, so engine.get_turn() will be the opponent's color
+        """
         opportunities = []
         attacked_pieces = []
         
-        # Collect valuable pieces being attacked
+        # Get the color of our piece (opposite of current turn)
+        our_piece = self.engine.get_piece_at(piece_square)
+        if not our_piece:
+            return []
+            
+        # Collect enemy pieces being attacked
         for square in attacked_squares:
             piece = self.engine.get_piece_at(square)
-            if piece and piece.color != self.engine.get_turn():
+            if piece and piece.color != our_piece.color:  # If it's an enemy piece
                 attacked_pieces.append((square, piece))
                 
         # Look for valuable combinations (2 or more pieces)
@@ -179,16 +199,24 @@ class ChessPieceAgent:
             square: piece for square, piece in self.engine.get_piece_map().items()
             if piece.color == self.engine.get_turn() and square != piece_square
         }
-        
         # Make the move
         self.engine.make_move(move)
         
         # Get enemy pieces after the move
-        enemy_pieces = {
-            square: piece for square, piece in self.engine.get_piece_map().items()
-            if piece.color != self.engine.get_turn()
-        }
+        enemy_pieces = {}
+        piece_map = self.engine.get_piece_map()
+        enemy_color = not self.engine.get_turn()
         
+        # Iterate through all pieces and collect enemy pieces
+        for square, piece in piece_map.items():
+            if piece.color != enemy_color:
+                enemy_pieces[square] = piece
+
+        # Validate we found enemy pieces
+        if not enemy_pieces:
+            # No enemy pieces found - this is likely an error state
+            # Return empty dict but log warning
+            print("Warning: No enemy pieces found in position")
         # Check each of our pieces for potential discovered attacks
         for our_square, our_piece in our_pieces.items():
             # Skip if piece is not a sliding piece (bishop, rook, queen)

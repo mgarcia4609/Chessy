@@ -1,20 +1,19 @@
 import chess
 from dataclasses import dataclass
-from typing import List, Set, Dict, Optional
-from pathlib import Path
+from typing import List, Dict, Optional
 
 
 @dataclass
 class EngineAnalysis:
     """Analysis results from the engine"""
-    score: float  # Total evaluation score
+    score: float                 # Total evaluation score
     material_balance: float = 0  # Pure material score
     positional_score: float = 0  # Position quality score
-    mobility_score: float = 0  # Movement possibilities score
-    center_control: float = 0  # Control of central squares
-    king_safety: float = 0  # King safety evaluation
-    depth: int = 1  # Search depth (1 for static evaluation)
-    pv: List[str] = None  # Principal variation (planned moves)
+    mobility_score: float = 0    # Movement possibilities score
+    center_control: float = 0    # Control of central squares
+    king_safety: float = 0       # King safety evaluation
+    depth: int = 1               # Search depth (1 for static evaluation)
+    pv: List[str] = None         # Principal variation (planned moves)
     
     def __post_init__(self):
         if self.pv is None:
