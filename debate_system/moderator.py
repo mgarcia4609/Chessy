@@ -118,19 +118,27 @@ class StandardDebate(DebateStrategy):
         """Gather move proposals from all pieces that can move"""
         proposals = []
         board = chess.Board(position.fen)
+        print("\n")
+        print(f"{board}")
         
         for move_uci in moves:
+            print(f"move_uci: {move_uci}")
             move = chess.Move.from_uci(move_uci)
             from_square = move.from_square
-            
+            print(f"from_square: {from_square}")
+
             piece = board.piece_at(from_square)
+            print(f"piece: {piece}")
             if not piece or not piece.color == chess.WHITE:
                 continue
                 
             piece_type = piece.symbol().upper()
+            print(f"piece_type: {piece_type}")
             if piece_type in pieces:
                 agent = pieces[piece_type]
+                print(f"agent: {agent}")
                 proposal = agent.evaluate_move(position, move_uci)
+                print(f"proposal: {proposal}")
                 if proposal:
                     proposals.append(proposal)
         
@@ -199,15 +207,33 @@ class DebateModerator:
         for piece_type, piece in self.pieces.items():
             self.caretaker.save_state(piece_type, piece, len(self.debate_history))
         
+        # Choose winning proposal
+        debate = self.choose_winning_proposal(debate)
+        
         # Record debate and update memory
         self.debate_history.append(debate)
-        self.game_memory.record_moment(
-            position=position,
-            move=debate.winning_proposal if debate.winning_proposal else "",
-            emotional_impact=self.psychological_state.simulate_psychological_impact(
-                debate.winning_proposal if debate.winning_proposal else ""
+        if debate.winning_proposal:  # Only record moment if we have a winning proposal
+            self.game_memory.record_moment(
+                position=position,
+                move=debate.winning_proposal.move,
+                emotional_impact=self.psychological_state.simulate_psychological_impact(debate.winning_proposal)
             )
-        )
+        
+        return debate
+    
+    def choose_winning_proposal(self, debate: DebateRound) -> DebateRound:
+        """Assign a winning proposal to a DebateRound object based on highest score for now"""
+        if not debate.proposals:
+            return None
+            
+        # Sort proposals by score (highest first)
+        sorted_proposals = sorted(debate.proposals, key=lambda p: p.score, reverse=True)
+        
+        # Select the highest scoring proposal
+        winning_proposal = sorted_proposals[0]
+        
+        # Update the debate with the winning proposal
+        debate.winning_proposal = winning_proposal
         
         return debate
     
