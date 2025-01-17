@@ -9,8 +9,8 @@ from chess_engine.sunfish_wrapper import ChessEngine
 class QueenAgent(ChessPieceAgent):
     """A queen whose immense power is matched only by her emotional turbulence"""
     
-    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality, emotional_state)
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None, board_piece: Optional[chess.Piece] = None, square: Optional[chess.Square] = None):
+        super().__init__(engine, personality, emotional_state, board_piece, square)
         # Track royal state
         self.pieces_threatened = 0     # Number of pieces we're currently threatening
         self.center_control = 0.0      # How much of the center we control (0-1)

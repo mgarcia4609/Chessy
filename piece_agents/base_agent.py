@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Set, TYPE_CHECKING, Dict, Tuple
+from typing import List, Set, TYPE_CHECKING, Dict, Tuple, Optional
 import chess
 
 from chess_engine.sunfish_wrapper import ChessEngine, MoveContext
@@ -26,8 +26,17 @@ class ChessPieceAgent:
     engine: ChessEngine
     personality: PersonalityConfig
     emotional_state: EmotionalState
+    board_piece: Optional['chess.Piece'] = None
+    square: Optional['chess.Square'] = None
     _recent_interactions: List[Interaction] = field(default_factory=list)
     _tactical_cache: Dict[str, List[TacticalOpportunity]] = field(default_factory=dict)
+
+    @property
+    def piece_id(self) -> str:
+        """Get unique identifier for this piece (e.g., 'Ne2')"""
+        if self.board_piece and self.square is not None:
+            return f"{self.board_piece.symbol().upper()}{chess.square_name(self.square)}"
+        return self.personality.name[0].upper()  # Fallback to first letter of personality name
 
     #TODO: add post init for fancier engines with more options
     # def __post_init__(self):
@@ -59,6 +68,7 @@ class ChessPieceAgent:
         analyses = self.engine.evaluate_position()
         
         if not analyses:
+            print(f"No analyses for move: {move}")
             return None
             
         # Calculate weighted score based on personality

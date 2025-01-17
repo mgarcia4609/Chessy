@@ -29,8 +29,8 @@ class GloryMetrics:
 class RookAgent(ChessPieceAgent):
     """A rook that's usually paralyzed by anxiety but becomes gloriously unhinged when destiny calls"""
     
-    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality, emotional_state)
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None, board_piece: Optional[chess.Piece] = None, square: Optional[chess.Square] = None):
+        super().__init__(engine, personality, emotional_state, board_piece, square)
         
         # Track current state
         self.comfort = ComfortMetrics(0.0, 0, 0.0, 0)

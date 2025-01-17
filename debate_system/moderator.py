@@ -114,23 +114,48 @@ class StandardDebate(DebateStrategy):
         proposals = self._gather_proposals(position, pieces, moves)
         return DebateRound(position=position, proposals=proposals)
         
+    def _find_piece_agent(self, piece_type: str, square_name: str, pieces: Dict[str, ChessPieceAgent]) -> Optional[ChessPieceAgent]:
+        """Find a piece agent by its type and current square.
+        
+        Args:
+            piece_type: Type of piece (e.g., 'N' for knight)
+            square_name: Current square name (e.g., 'f3')
+            pieces: Dictionary of piece agents
+            
+        Returns:
+            The piece agent if found, None otherwise
+        """
+        target_square = chess.parse_square(square_name)
+        
+        # Look for a piece of the right type at the target square
+        for agent in pieces.values():
+            if (agent.board_piece and 
+                agent.board_piece.symbol().upper() == piece_type and 
+                chess.square_name(agent.square) == square_name):
+                return agent
+                
+        return None
+
     def _gather_proposals(self, position: Position, pieces: Dict[str, ChessPieceAgent],
                          moves: List[str]) -> List[MoveProposal]:
         """Gather move proposals from all pieces that can move"""
         proposals = []
         board = chess.Board(position.fen)
-        
+
         for move_uci in moves:
             move = chess.Move.from_uci(move_uci)
             from_square = move.from_square
 
             piece = board.piece_at(from_square)
             if not piece or not piece.color == chess.WHITE:
+                print(f"No piece at {from_square}")
                 continue
                 
             piece_type = piece.symbol().upper()
-            if piece_type in pieces:
-                agent = pieces[piece_type]
+            square_name = chess.square_name(from_square)
+            
+            agent = self._find_piece_agent(piece_type, square_name, pieces)
+            if agent:
                 proposal = agent.evaluate_move(position, move_uci)
                 if proposal:
                     proposals.append(proposal)
@@ -178,8 +203,6 @@ class DebateModerator:
         """Create a moderator with default pieces"""
         factory = PersonalityFactory()
         personalities = factory.create_all_personalities()
-        
-        # Create concrete piece agents
         pieces = PieceAgentFactory.create_all_agents(personalities, engine)
         return cls(pieces)
     
@@ -187,21 +210,21 @@ class DebateModerator:
     def create_themed(cls, engine: ChessEngine, theme: str) -> 'DebateModerator':
         """Create a moderator with themed piece personalities"""
         factory = PersonalityFactory()
-        pieces = {}
-        
-        for piece_type in ['P', 'N', 'B', 'R', 'Q', 'K']:
-            personality = factory.create_themed_personality(piece_type, theme)
-            pieces[piece_type] = PieceAgentFactory.create_agent(
-                piece_type, personality, ChessEngine()
-            )
-            
+        personalities = {
+            piece_type: factory.create_themed_personality(piece_type, theme)
+            for piece_type in ['P', 'N', 'B', 'R', 'Q', 'K']
+        }
+        pieces = PieceAgentFactory.create_all_agents(personalities, engine)
         return cls(pieces)
 
     def conduct_debate(self, position: Position, moves: List[str]) -> DebateRound:
         """Conduct a debate round using command pattern"""
+        # Update piece positions based on move history
+        self.update_piece_positions(position.move_history)
+        
         command = DebateCommand(self, self.debate_strategy)
         debate = command.execute(position, moves)
-        
+
         # Save piece states
         for piece_type, piece in self.pieces.items():
             self.caretaker.save_state(piece_type, piece, len(self.debate_history))
@@ -223,14 +246,16 @@ class DebateModerator:
     def choose_winning_proposal(self, debate: DebateRound) -> DebateRound:
         """Assign a winning proposal to a DebateRound object based on highest score for now"""
         if not debate.proposals:
+            print("No proposals to choose from")
             return None
             
         # Sort proposals by score (highest first)
         sorted_proposals = sorted(debate.proposals, key=lambda p: p.score, reverse=True)
+
         
         # Select the highest scoring proposal
         winning_proposal = sorted_proposals[0]
-        
+
         # Update the debate with the winning proposal
         debate.winning_proposal = winning_proposal
         
@@ -291,3 +316,42 @@ class DebateModerator:
             f"Turn {i+1}:\n{self.summarize_debate(debate)}"
             for i, debate in enumerate(self.debate_history)
         ] 
+    
+    def update_piece_positions(self, move_history: List[str]):
+        """Update piece positions based on move history.
+        
+        Args:
+            move_history: List of moves in UCI format (e.g. ['e2e4', 'e7e5'])
+        """
+        # Start from initial position
+        board = chess.Board()
+        
+        # Replay moves and update piece positions
+        for move_uci in move_history:
+            move = chess.Move.from_uci(move_uci)
+            
+            # Only track white pieces
+            piece = board.piece_at(move.from_square)
+            if piece and piece.color == chess.WHITE:
+                self._update_piece_position(piece, move)
+                
+            # Make the move on our tracking board
+            board.push(move)
+    
+    def _update_piece_position(self, piece: chess.Piece, move: chess.Move):
+        """Update a piece's position when it moves.
+        
+        Args:
+            piece: The chess piece that moved
+            move: The move that was made
+        """
+        piece_type = piece.symbol().upper()
+        
+        # Find the agent for this piece
+        for agent in self.pieces.values():
+            if (agent.board_piece and 
+                agent.board_piece.symbol().upper() == piece_type and 
+                agent.square == move.from_square):
+                # Update the agent's square to the new position
+                agent.square = move.to_square
+                break 

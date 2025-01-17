@@ -1,6 +1,6 @@
 """A modern Don Quixote of the chessboard - seeing grand adventures in tactical opportunities"""
 from typing import List, Optional
-
+import chess
 from .base_agent import ChessPieceAgent, TacticalOpportunity
 from debate_system.protocols import Position, EngineAnalysis, EmotionalState, PersonalityConfig
 from chess_engine.sunfish_wrapper import ChessEngine
@@ -9,8 +9,8 @@ from chess_engine.sunfish_wrapper import ChessEngine
 class KnightAgent(ChessPieceAgent):
     """A modern Don Quixote of the chessboard - seeing grand adventures in tactical opportunities"""
     
-    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality, emotional_state)
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None, board_piece: Optional[chess.Piece] = None, square: Optional[chess.Square] = None):
+        super().__init__(engine, personality, emotional_state, board_piece, square)
         self._quest_counter = 0  # Track our noble quests
         
     def _calculate_weighted_score(self, analysis: EngineAnalysis) -> float:

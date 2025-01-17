@@ -42,25 +42,26 @@ def starting_position():
 def test_create_default_moderator(default_moderator):
     """Test creating moderator with default personalities"""
     # Check all piece types are present
-    assert set(default_moderator.pieces.keys()) == {'N', 'B', 'R', 'Q', 'K', 'P'}
+    print(default_moderator.pieces.keys())
+    assert set(default_moderator.pieces.keys()) == {'Ph2', 'Pg2', 'Pf2', 'Pe2', 'Pd2', 'Pc2', 'Pb2', 'Pa2', 'Rh1', 'Ng1', 'Bf1', 'Ke1', 'Qd1', 'Bc1', 'Nb1', 'Ra1'}
     
     # Verify piece personalities
-    knight = default_moderator.pieces['N']
+    knight = default_moderator.pieces['Nb1']
     assert "modern Don Quixote" in knight.personality.description
     assert knight.personality.tactical_weight == 1.2
     
-    queen = default_moderator.pieces['Q']
+    queen = default_moderator.pieces['Qd1']
     assert "drama queen" in queen.personality.description
     assert queen.personality.risk_tolerance > 0.5
 
 def test_create_themed_moderator(aggressive_moderator):
     """Test creating moderator with themed personalities"""
     # Check personality modifications
-    knight = aggressive_moderator.pieces['N']
+    knight = aggressive_moderator.pieces['Nb1']
     assert knight.personality.tactical_weight > 1.2  # More aggressive than default
     assert "aggressively" in knight.personality.description.lower()
     
-    bishop = aggressive_moderator.pieces['B']
+    bishop = aggressive_moderator.pieces['Bc1']
     assert bishop.personality.risk_tolerance > 0.5
     assert "zealously" in bishop.personality.description.lower()
 
@@ -153,10 +154,17 @@ def test_interaction_recording(default_moderator):
 
 def test_emotional_state_influence(default_moderator, starting_position):
     """Test how emotional state affects move evaluation"""
-    knight = default_moderator.pieces['N']
+    king_side_knight = default_moderator.pieces['Ng1']
+    queen_side_knight = default_moderator.pieces['Nb1']
     
     # Simulate confident emotional state
-    knight.emotional_state = EmotionalState(
+    king_side_knight.emotional_state = EmotionalState(
+        confidence=0.8,
+        aggression=0.7,
+        morale=0.6,
+        trust=0.5
+    )
+    queen_side_knight.emotional_state = EmotionalState(
         confidence=0.8,
         aggression=0.7,
         morale=0.6,

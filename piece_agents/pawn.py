@@ -10,8 +10,8 @@ from chess_engine.sunfish_wrapper import ChessEngine
 class PawnAgent(ChessPieceAgent):
     """A pawn whose revolutionary zeal masks personal ambitions"""
     
-    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality, emotional_state)
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None, board_piece: Optional[chess.Piece] = None, square: Optional[chess.Square] = None):
+        super().__init__(engine, personality, emotional_state, board_piece, square)
         # Track revolutionary state
         self.rank = None                   # Current rank (measure of progress toward promotion)
         self.fellow_pawns_nearby = 0       # Number of allied pawns in support

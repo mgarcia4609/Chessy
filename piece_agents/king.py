@@ -21,8 +21,8 @@ class FacadeMetrics:
 class KingAgent(ChessPieceAgent):
     """A king whose tough-love leadership style masks deep anxiety about failure"""
     
-    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None):
-        super().__init__(engine, personality, emotional_state)
+    def __init__(self, engine: ChessEngine, personality: PersonalityConfig, emotional_state: Optional[EmotionalState] = None, board_piece: Optional[chess.Piece] = None, square: Optional[chess.Square] = None):
+        super().__init__(engine, personality, emotional_state, board_piece, square)
         # Track leadership metrics
         self.facade = FacadeMetrics(0.0, 0, 0.0, 1.0)
         self.piece_positions = defaultdict(str)  # Track where "my pieces should be"
