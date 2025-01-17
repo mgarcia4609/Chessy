@@ -103,7 +103,7 @@ def test_full_debate_round_integration(game, monkeypatch):
     )
     
     # Run through white's move process only
-    result = game.play_move(handle_black_move=False)
+    result = game.play_move(handle_black_move=False, is_test=True)
     
     # Verify debate had impact
     assert game.moderator.psychological_state.cohesion != initial_psych
@@ -117,7 +117,7 @@ def test_pgn_recording(game, monkeypatch):
     monkeypatch.setattr('builtins.input', lambda _: next(inputs))
     
     # Play one full round
-    game.play_move()
+    game.play_move(is_test=True)
     
     # Check PGN recording
     last_node = game.game.end()
@@ -135,7 +135,7 @@ def test_relationship_changes_after_move(game, monkeypatch):
     initial_interactions = len(network.recent_interactions)
     
     # Make a move
-    game.play_move()
+    game.play_move(is_test=True)
     
     # Verify relationships were updated
     assert len(network.recent_interactions) > initial_interactions
@@ -150,7 +150,7 @@ def test_game_state_transitions(game, monkeypatch):
     assert game.board.turn == chess.WHITE
     
     # Play move and verify transitions
-    game.play_move(handle_black_move=True)
+    game.play_move(handle_black_move=True, is_test=True)
     
     # After full round
     assert len(game.move_history) == 2  # Both moves recorded

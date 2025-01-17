@@ -185,19 +185,64 @@ class DebateChessGame:
             except (ValueError, IndexError):
                 print("Invalid move format. Please use UCI format (e.g. 'e7e5')")
 
-    def play_move(self, handle_black_move: bool = False) -> Optional[str]:
+    def _handle_player_move(self) -> bool:
+        """Handle player's move for Black. Returns True if move was made successfully"""
+        print("\nBlack to move")
+        print("Legal moves:", ", ".join(self._get_legal_moves()))
+        
+        while True:
+            try:
+                move = input("\nEnter move (in UCI format, e.g. 'e7e5'): ").strip()
+                if move in self._get_legal_moves():
+                    self._make_move(move)
+                    print("\nPosition after Black's move:")
+                    print(self.board)
+                    return True
+                print("Invalid move. Please enter a legal move from the list above.")
+            except (ValueError, IndexError):
+                print("Invalid move format. Please use UCI format (e.g. 'e7e5')")
+
+    def _display_top_choices(self, proposals: List[MoveProposal]):
+        """Display a summary of the top 3 choices and their key attributes.
+        
+        Args:
+            proposals: List of move proposals, assumed to be already sorted by score
+        """
+        print("\n=== Top Choices Summary ===")
+        for i, proposal in enumerate(proposals[:3], 1):
+            piece_agent = next(iter(proposal.piece.values()))
+            print(f"\nChoice {i}: {piece_agent.personality.name}'s {proposal.move}")
+            print(f"Score: {proposal.score:.2f}")
+            print(f"Key points:")
+            print(f"- {proposal.argument}")
+            
+            # List tactical elements if any
+            tactics = [k for k, v in proposal.tactical_context.items() if v]
+            if tactics:
+                print(f"- Tactical advantages: {', '.join(tactics)}")
+            
+            # Show emotional state highlights
+            emotions = piece_agent.emotional_state
+            highest_emotion = max([
+                ('confidence', emotions.confidence),
+                ('morale', emotions.morale),
+                ('trust', emotions.trust),
+                ('aggression', emotions.aggression)
+            ], key=lambda x: x[1])
+            print(f"- Dominant emotion: {highest_emotion[0]} ({highest_emotion[1]:.2f})")
+        print("\n" + "="*25)
+
+    def play_move(self, handle_black_move: bool = False, is_test: bool = False) -> Optional[str]:
         """Play one move of the game
         
         Args:
             handle_black_move: Whether to handle Black's move after White's move.
                              Set to True for full rounds, False for White's move only.
+            is_test: Whether the move is being played as part of a test.
         """
         # Check if game is over
         if result := self._check_game_over():
             return result
-
-        # Display current game state
-        self._display_game_state()
 
         # Get current position and conduct debate
         position = Position(
@@ -209,7 +254,12 @@ class DebateChessGame:
         debate = self.moderator.conduct_debate(position, legal_moves)
 
         # Display debate and get player choice
-        self._display_debate_proposals(debate)
+        #self._display_debate_proposals(debate)
+        
+        # Display current game state
+        self._display_game_state()
+        
+        self._display_top_choices(debate.proposals)  # Add summary of top choices
         winning_proposal = self._get_player_choice(debate)
 
         # Show move impact
@@ -229,6 +279,9 @@ class DebateChessGame:
         # Handle black's move if requested and game isn't over
         if handle_black_move and not self.board.is_game_over():
             self._handle_black_move()
+            
+        if not handle_black_move and not is_test and not self.board.is_game_over():
+            self._handle_player_move()
 
         return None  # Game continues
 
