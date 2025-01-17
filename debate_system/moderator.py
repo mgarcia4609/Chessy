@@ -156,7 +156,6 @@ class StandardDebate(DebateStrategy):
             
             agent = self._find_piece_agent(piece_type, square_name, pieces)
             agent_id = agent.piece_id
-            print(f"agent_id: {agent_id}")
             if agent:
                 proposal = agent.evaluate_move(position, move_uci, agent_id)
                 if proposal:
