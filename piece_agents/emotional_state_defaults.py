@@ -35,7 +35,7 @@ DEFAULT_EMOTIONAL_STATES: Dict[str, EmotionalState] = {
         aggression=0.3    # Cautious by nature
     ),
     'P': EmotionalState(
-        confidence=0.5,    # Growing revolutionary spirit
+        confidence=0.6,    # Growing revolutionary spirit
         morale=0.8,       # Strong collective spirit (initially)
         trust=0.7,        # Solidarity with fellow pawns
         aggression=0.6    # Ready to challenge authority

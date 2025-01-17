@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from piece_agents.base_agent import ChessPieceAgent
-
+    from moderator import DebateModerator
 
 
 class InteractionType(Enum):
@@ -126,7 +126,8 @@ class GameMoment:
     turn: int                 # When it happened
     narrative: str            # Description of the moment
     participants: List[str]   # Pieces involved
-    
+    interaction_type: InteractionType = None  # Type of interaction if known
+
     @property
     def significance(self) -> float:
         """How significant this moment was (0-1)"""
@@ -460,3 +461,31 @@ class LLMContext:
     game_memory: GameMemory
     psychological_state: PsychologicalState
     debate_history: List[DebateRound]
+
+@dataclass
+class TeamPsychologyObserver:
+    """Observes game moments and updates team psychological state"""
+    moderator: 'DebateModerator'  # Reference to the moderator that owns the psychological state
+    
+    def on_game_moment(self, moment: GameMoment):
+        """React to game moments by updating team psychological state"""
+        # Calculate team impact based on event type and significance
+        interaction_type = moment.interaction_type
+        if interaction_type == InteractionType.TRAUMA:
+            # Major trauma affects whole team
+            self.moderator.psychological_state.morale = max(0.0, min(1.0, self.moderator.psychological_state.morale - 0.2))
+            self.moderator.psychological_state.cohesion = max(0.0, min(1.0, self.moderator.psychological_state.cohesion - 0.1))
+            self.moderator.psychological_state.cohesion = max(0.0, min(1.0, self.moderator.psychological_state.cohesion - 0.1))
+            self.moderator.psychological_state.coordination = max(0.0, min(1.0, self.moderator.psychological_state.coordination - 0.1))
+            self.moderator.psychological_state.leadership = max(0.0, min(1.0, self.moderator.psychological_state.leadership - 0.05))
+        elif interaction_type == InteractionType.THREAT:
+            # Threats can sometimes unite the team
+            self.moderator.psychological_state.morale = max(0.0, min(1.0, self.moderator.psychological_state.morale - 0.1))
+            self.moderator.psychological_state.cohesion = max(0.0, min(1.0, self.moderator.psychological_state.cohesion + 0.1))
+            
+    def on_relationship_change(self, piece1: str, piece2: str, change: float):
+        """React to relationship changes by updating team cohesion"""
+        # Significant relationship changes affect team cohesion
+        if abs(change) > 0.3:
+            self.moderator.psychological_state.cohesion = max(0.0, min(1.0, 
+                self.moderator.psychological_state.cohesion + (change * 0.2)))

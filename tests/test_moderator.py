@@ -137,6 +137,76 @@ def test_opponent_interaction_types():
     assert stalking.type == InteractionType.STALKING
     assert -0.5 < stalking.impact < 0  # Moderate negative impact
 
+def test_register_opponent_action(default_moderator, starting_position):
+    """Test registering opponent actions affects piece relationships and emotions"""
+    # Setup: Make a move to e4 first
+    moves = ["e2e4"]
+    debate = default_moderator.conduct_debate(starting_position, moves)
+    winning = default_moderator.select_winning_proposal(debate, 0)
+    
+    # Record initial states
+    initial_team_morale = default_moderator.psychological_state.morale
+    initial_team_cohesion = default_moderator.psychological_state.cohesion
+    pawn = default_moderator.pieces["Pe2"]
+    initial_pawn_confidence = pawn.emotional_state.confidence
+    initial_pawn_morale = pawn.emotional_state.morale
+    print(f"initial_pawn_confidence: {initial_pawn_confidence}")
+    print(f"initial_pawn_morale: {initial_pawn_morale}")
+    
+    # Record black's threatening move
+    mediator = default_moderator.interaction_mediator
+    mediator.register_opponent_action(
+        position=starting_position,
+        move="f7f6",  # Black pawn moves to threaten e4
+        affected_pieces=["Pe2"],  # Our pawn is referenced by starting square
+        interaction_type=InteractionType.THREAT,
+        turn=1
+    )
+    
+    # Verify interaction was recorded
+    last_interaction = mediator.relationship_network.recent_interactions[-1]
+    assert last_interaction.type == InteractionType.THREAT
+    assert last_interaction.impact < 0
+    
+    # Verify individual piece impact from threat
+    assert pawn.emotional_state.confidence < initial_pawn_confidence  # Confidence drops
+    assert pawn.emotional_state.morale < initial_pawn_morale  # Morale drops
+    print(f"pawn.emotional_state.confidence: {pawn.emotional_state.confidence}")
+    print(f"pawn.emotional_state.morale: {pawn.emotional_state.morale}")
+    
+    # Verify team psychological impact from threat
+    assert default_moderator.psychological_state.morale < initial_team_morale  # Team morale drops
+    assert default_moderator.psychological_state.cohesion > initial_team_cohesion  # Team unites against threat
+    
+    # Record initial states before trauma
+    pre_trauma_team_morale = default_moderator.psychological_state.morale
+    pre_trauma_team_coordination = default_moderator.psychological_state.coordination
+    pre_trauma_pawn_confidence = pawn.emotional_state.confidence
+    print(f"pre_trauma_pawn_confidence: {pre_trauma_pawn_confidence}")
+    
+    # Record a capture
+    mediator.register_opponent_action(
+        position=starting_position,
+        move="f6e4",  # Black captures our pawn
+        affected_pieces=["Pe2"],  # Still reference by starting position
+        interaction_type=InteractionType.TRAUMA,
+        turn=2
+    )
+    
+    # Verify trauma was recorded
+    last_interaction = mediator.relationship_network.recent_interactions[-1]
+    assert last_interaction.type == InteractionType.TRAUMA
+    assert last_interaction.impact < -0.3  # Major negative impact
+    
+    # Verify individual piece impact from trauma
+    assert pawn.emotional_state.confidence < pre_trauma_pawn_confidence  # Confidence drops further
+    assert pawn.emotional_state.morale < 0.2  # Morale severely impacted
+    
+    # Verify team psychological impact from trauma
+    assert default_moderator.psychological_state.morale < pre_trauma_team_morale  # Team morale drops further
+    assert default_moderator.psychological_state.coordination < pre_trauma_team_coordination  # Team coordination suffers
+    assert default_moderator.psychological_state.leadership < 0.55  # Leadership is questioned
+
 def test_debate_consensus_effects(default_moderator, starting_position):
     """Test how debate consensus affects team psychology"""
     moves = ["e2e4"]  # Simple position with clear best move

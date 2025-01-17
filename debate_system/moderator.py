@@ -12,9 +12,11 @@ from debate_system.protocols import (
     GameMoment,
     EmotionalState,
     Interaction,
+    InteractionType,
     PsychologicalState,
     GameMemory,
-    RelationshipNetwork
+    RelationshipNetwork,
+    TeamPsychologyObserver
 )
 from piece_agents.base_agent import ChessPieceAgent
 from piece_agents.personality_factory import PersonalityFactory
@@ -97,6 +99,67 @@ class InteractionMediator:
         
         # Notify observers
         self.notify_relationship(interaction.piece1, interaction.piece2, trust_change)
+
+    def register_opponent_action(self, position: Position, move: str, 
+                               affected_pieces: List[str], interaction_type: InteractionType,
+                               turn: int):
+        """Record an opponent's action and its impact on our pieces
+        
+        Args:
+            position: Current chess position
+            move: The opponent's move in UCI format
+            affected_pieces: List of our pieces affected by the move (e.g. ["Pe4"])
+            interaction_type: Type of interaction (THREAT, TRAUMA, etc)
+            turn: Current turn number
+        """
+        # Determine impact based on interaction type
+        if interaction_type == InteractionType.TRAUMA:
+            impact = -0.5  # Major negative impact for captures
+        elif interaction_type == InteractionType.THREAT:
+            impact = -0.3  # Moderate negative impact for threats
+        elif interaction_type == InteractionType.STALKING:
+            impact = -0.2  # Minor negative impact for repeated threats
+        else:
+            impact = -0.1  # Default negative impact
+            
+        # Create context description based on type
+        context_map = {
+            InteractionType.TRAUMA: "was captured by",
+            InteractionType.THREAT: "is threatened by",
+            InteractionType.STALKING: "is being stalked by",
+            InteractionType.BLOCKADE: "is blocked by",
+            InteractionType.RIVALRY: "faces rivalry from"
+        }
+        action = context_map.get(interaction_type, "interacts with")
+        
+        # Record interaction for each affected piece
+        for piece_id in affected_pieces:
+            interaction = Interaction(
+                piece1=piece_id,
+                piece2=f"black_{move[2:4]}",  # Use destination square to identify enemy piece
+                type=interaction_type,
+                turn=turn,
+                move=move,
+                impact=impact,
+                context=f"{piece_id} {action} enemy piece on {move[2:4]}"
+            )
+            self.register_interaction(interaction)
+            
+            # Create game moment for significant events
+            if interaction_type in [InteractionType.TRAUMA, InteractionType.THREAT]:
+                moment = GameMoment(
+                    position=position,
+                    move=move,
+                    impact={piece_id[0]: {
+                        "confidence": impact * 0.05,
+                        "morale": impact * 0.5,
+                    }},
+                    turn=turn,
+                    narrative=interaction.context,
+                    participants=[piece_id],
+                    interaction_type = interaction_type
+                )
+                self.notify_moment(moment)
 
 
 class DebateStrategy(ABC):
@@ -198,6 +261,12 @@ class DebateModerator:
                 relationship_network=self.interaction_mediator.relationship_network
             )
             self.interaction_mediator.register(observer)
+            
+        # Register team psychology observer
+        team_observer = TeamPsychologyObserver(
+            moderator=self
+        )
+        self.interaction_mediator.register(team_observer)
 
     @classmethod
     def create_default(cls, engine: ChessEngine) -> 'DebateModerator':
