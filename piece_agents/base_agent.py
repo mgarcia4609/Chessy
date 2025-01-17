@@ -44,7 +44,7 @@ class ChessPieceAgent:
     #     for option, value in self.personality.options.items():
     #         self.engine.set_option(option, value)
     
-    def evaluate_move(self, position: Position, move: str, think_time: int = 500) -> MoveProposal:
+    def evaluate_move(self, position: Position, move: str, piece_id: str, think_time: int = 500) -> MoveProposal:
         """Evaluate a potential move
         
         Args:
@@ -95,6 +95,7 @@ class ChessPieceAgent:
         argument = self._generate_argument(position, move, analyses)
         
         return MoveProposal(
+            piece = {piece_id: self},
             move=move,
             score=weighted_score,
             analysis=analyses,

@@ -155,8 +155,10 @@ class StandardDebate(DebateStrategy):
             square_name = chess.square_name(from_square)
             
             agent = self._find_piece_agent(piece_type, square_name, pieces)
+            agent_id = agent.piece_id
+            print(f"agent_id: {agent_id}")
             if agent:
-                proposal = agent.evaluate_move(position, move_uci)
+                proposal = agent.evaluate_move(position, move_uci, agent_id)
                 if proposal:
                     proposals.append(proposal)
         
@@ -297,15 +299,17 @@ class DebateModerator:
         summary_parts = []
         
         for i, proposal in enumerate(debate.proposals):
+            piece_agent = next(iter(proposal.piece.values()))
             summary_parts.append(
-                f"{i+1}. {proposal.piece.personality.name}'s proposal "
+                f"{i+1}. {piece_agent.personality.name}'s proposal "
                 f"(score: {proposal.score:.2f}):\n"
                 f"{proposal.argument}\n"
             )
         
         if debate.winning_proposal:
+            piece_agent = next(iter(debate.winning_proposal.piece.values()))
             summary_parts.append(
-                f"\nWinning move: {debate.winning_proposal.piece.personality.name}'s proposal"
+                f"\nWinning move: {piece_agent.personality.name}'s proposal"
             )
         
         return "\n".join(summary_parts)

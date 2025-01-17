@@ -164,6 +164,7 @@ class Position:
 @dataclass
 class MoveProposal:
     """A proposed move from a piece"""
+    piece: Dict[str, 'ChessPieceAgent']
     move: str  # UCI format (e.g. 'e2e4')
     score: float
     analysis: 'EngineAnalysis'

@@ -102,8 +102,8 @@ def test_full_debate_round_integration(game, monkeypatch):
         move_history=[]
     )
     
-    # Run through white's move process
-    result = game.play_move()
+    # Run through white's move process only
+    result = game.play_move(handle_black_move=False)
     
     # Verify debate had impact
     assert game.moderator.psychological_state.cohesion != initial_psych
@@ -150,7 +150,7 @@ def test_game_state_transitions(game, monkeypatch):
     assert game.board.turn == chess.WHITE
     
     # Play move and verify transitions
-    game.play_move()
+    game.play_move(handle_black_move=True)
     
     # After full round
     assert len(game.move_history) == 2  # Both moves recorded
