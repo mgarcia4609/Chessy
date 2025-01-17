@@ -46,7 +46,7 @@ class BishopAgent(ChessPieceAgent):
         """Check if bishop has clear diagonal paths (paths of enlightenment)"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == self.engine.BISHOP and 
+            if (piece and piece.piece_type == chess.BISHOP and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
@@ -62,7 +62,7 @@ class BishopAgent(ChessPieceAgent):
         """Count how many enemy pieces we can potentially 'convert'"""
         piece_square = None
         for square, piece in self.engine.get_piece_map().items():
-            if (piece and piece.piece_type == self.engine.BISHOP and 
+            if (piece and piece.piece_type == chess.BISHOP and 
                 piece.color == self.engine.get_turn()):
                 piece_square = square
                 break
