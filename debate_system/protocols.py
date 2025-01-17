@@ -2,6 +2,11 @@
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from piece_agents.base_agent import ChessPieceAgent
+
 
 
 class InteractionType(Enum):
@@ -168,164 +173,6 @@ class MoveProposal:
     affected_pieces: List[str] = field(default_factory=list)  # pieces involved in the move
 
 @dataclass
-class DebateRound:
-    """
-    Records a round of debate
-    Example: Strong agreement boosts team morale
-
-    if debate.has_consensus:
-        # All pieces agree, boost team spirit
-        for piece in pieces.values():
-            piece.emotional_state.apply_impact({
-                "morale": 0.1,
-                "trust": 0.05
-            })
-
-        narrative = "The pieces moved in perfect harmony, "
-        narrative += "their shared vision strengthening their resolve."
-    else:
-        # Disagreement might cause tension
-        for proposal in debate.proposals[1:]:
-            proposal.piece.emotional_state.apply_impact({
-                "trust": -0.05
-            })
-    """
-    position: Position
-    proposals: List[MoveProposal]
-    winning_proposal: Optional[MoveProposal] = None
-    
-    @property
-    def has_consensus(self) -> bool:
-        """Check if there was strong agreement"""
-        if len(self.proposals) < 2:
-            return True
-        
-        # Check if top proposals are close in score
-        top_score = self.proposals[0].score
-        runner_up_score = self.proposals[1].score
-        return abs(top_score - runner_up_score) < 0.2
-
-@dataclass
-class PersonalityConfig:
-    """Configuration for engine personality"""
-    name: str
-    description: str
-    options: Dict[str, int]         # Engine option name -> value
-    
-    tactical_weight: float = 1.0    # Weight for tactical evaluation
-    positional_weight: float = 1.0  # Weight for positional factors
-    risk_tolerance: float = 0.5     # 0 = very cautious, 1 = very aggressive
-
-@dataclass
-class PersonalityTemplate:
-    """Template for creating piece personalities"""
-    name: str
-    title: str  # e.g., "Sir", "Bishop", "Queen"
-    description_template: str
-    options: Dict[str, int]
-    tactical_weight: float
-    positional_weight: float
-    risk_tolerance: float
-
-class RelationshipNetwork:
-    """Tracks relationships between pieces"""
-    trust_matrix: Dict[Tuple[str, str], float]  # (piece1, piece2) -> trust level
-    recent_interactions: List[Interaction]  # Last N interactions
-    
-    def get_support_bonus(self, piece1: str, piece2: str) -> float:
-        """Calculate bonus for pieces working together"""
-        trust = self.trust_matrix.get((piece1, piece2), 0.5)
-        recent = self.get_recent_cooperation(piece1, piece2)
-        return trust * (1 + recent * 0.5)  # Recent cooperation amplifies trust
-
-class PersonalityTrait(Enum):
-    """Core personality traits that influence behavior and interactions"""
-    DRAMATIC = "dramatic"           # Queen's flair, Knight's quests
-    ANALYTICAL = "analytical"       # Bishop's preaching, King's theories
-    PROTECTIVE = "protective"       # Rook's fortresses, King's safety
-    REVOLUTIONARY = "revolutionary" # Pawn's ambitions
-    ADVENTUROUS = "adventurous"     # Knight's quests
-    NEUROTIC = "neurotic"           # King's anxiety, Rook's agoraphobia
-    ZEALOUS = "zealous"             # Bishop's conversion attempts
-    THEATRICAL = "theatrical"       # Queen's drama
-
-@dataclass
-class InteractionProfile:
-    """Defines how a piece tends to interact with others"""
-    primary_traits: List[PersonalityTrait]
-    cooperation_style: str  # How they work with others
-    conflict_style: str     # How they handle disagreements
-    leadership_style: str   # How they influence others
-
-@dataclass
-class GameMemory:
-    """Tracks significant game events and their emotional impact"""
-    key_moments: List[GameMoment] = field(default_factory=list)
-    narrative_threads: Dict[str, List[str]] = field(default_factory=dict)
-    emotional_triggers: Dict[str, List[Trigger]] = field(default_factory=dict)
-    
-    def record_moment(self, position: Position, move: str, 
-                     emotional_impact: Dict[str, float]):
-        """Record a significant game moment"""
-        moment = GameMoment(
-            position=position,
-            move=move,
-            impact=emotional_impact,
-            turn=len(self.key_moments) + 1,
-            narrative="",  # Will be generated
-            participants=[]  # Will be determined
-        )
-        self.key_moments.append(moment)
-        
-        # Update narrative threads
-        print(f"moment: {moment}")
-        piece = move[0]  # Get piece type from move
-        if piece not in self.narrative_threads:
-            self.narrative_threads[piece] = []
-        self.narrative_threads[piece].append(
-            self.generate_moment_narrative(moment))
-        
-        # Update emotional triggers
-        if abs(max(emotional_impact.values())) > 0.2:
-            if piece not in self.emotional_triggers:
-                self.emotional_triggers[piece] = []
-            self.emotional_triggers[piece].append(
-                Trigger(
-                    pattern=position.fen,  # Simplified for now
-                    impacts=emotional_impact,
-                    memory=self.generate_moment_narrative(moment),
-                    turn=len(self.key_moments)
-                )
-            )
-    
-    def generate_moment_narrative(self, moment: GameMoment) -> str:
-        """Generate narrative description of a moment"""
-        # Simplified for now
-        return f"Turn {moment.turn}: Move {moment.move} played"
-    
-    def generate_argument_context(self, piece: str, 
-                                position: Position) -> str:
-        """Generate contextual argument based on piece's history"""
-        # Get piece's narrative thread
-        thread = self.narrative_threads.get(piece, [])
-        
-        # Get relevant triggers
-        triggers = self.emotional_triggers.get(piece, [])
-        active_triggers = [
-            t for t in triggers
-            if t.pattern in position.fen  # Simplified pattern matching
-        ]
-        
-        # Combine into context
-        context = []
-        if thread:
-            context.append(f"Remembering: {thread[-1]}")
-        if active_triggers:
-            context.append(f"Feeling: {active_triggers[-1].memory}")
-            
-        return " ".join(context) if context else ""
-
-@dataclass
 class PsychologicalState:
     """Tracks overall board psychology"""
     cohesion: float = 0.5      # Team unity and coordination
@@ -377,6 +224,225 @@ class PsychologicalState:
             impacts['morale'] = 0.3  # Promotions are very exciting!
             
         return impacts
+
+@dataclass
+class DebateRound:
+    """
+    Records a round of debate
+    Example: Strong agreement boosts team morale
+
+    if debate.has_consensus:
+        # All pieces agree, boost team spirit
+        for piece in pieces.values():
+            piece.emotional_state.apply_impact({
+                "morale": 0.1,
+                "trust": 0.05
+            })
+
+        narrative = "The pieces moved in perfect harmony, "
+        narrative += "their shared vision strengthening their resolve."
+    else:
+        # Disagreement might cause tension
+        for proposal in debate.proposals[1:]:
+            proposal.piece.emotional_state.apply_impact({
+                "trust": -0.05
+            })
+    """
+    position: Position
+    proposals: List[MoveProposal]
+    winning_proposal: Optional[MoveProposal] = None
+    
+    @property
+    def has_consensus(self) -> bool:
+        """Check if there was strong agreement"""
+        if len(self.proposals) < 2:
+            return True
+        
+        # Check if top proposals are close in score
+        top_score = self.proposals[0].score
+        runner_up_score = self.proposals[1].score
+        return abs(top_score - runner_up_score) < 0.2
+    
+    def apply_consensus_impact(self, psychological_state: PsychologicalState):
+        """Apply consensus impact to overall board psychology"""
+        psychological_state.cohesion += 0.1
+        psychological_state.morale += 0.05
+        psychological_state.coordination += 0.1
+        psychological_state.leadership += 0.05
+        
+@dataclass
+class PersonalityConfig:
+    """Configuration for engine personality"""
+    name: str
+    description: str
+    options: Dict[str, int]         # Engine option name -> value
+    
+    tactical_weight: float = 1.0    # Weight for tactical evaluation
+    positional_weight: float = 1.0  # Weight for positional factors
+    risk_tolerance: float = 0.5     # 0 = very cautious, 1 = very aggressive
+
+@dataclass
+class PersonalityTemplate:
+    """Template for creating piece personalities"""
+    name: str
+    title: str  # e.g., "Sir", "Bishop", "Queen"
+    description_template: str
+    options: Dict[str, int]
+    tactical_weight: float
+    positional_weight: float
+    risk_tolerance: float
+
+@dataclass
+class RelationshipNetwork:
+    """Tracks relationships between pieces"""
+    trust_matrix: Dict[Tuple[str, str], float] = field(default_factory=dict)  # (piece1, piece2) -> trust level
+    recent_interactions: List[Interaction] = field(default_factory=list)  # Last N interactions
+    
+    def get_support_bonus(self, piece1: str, piece2: str) -> float:
+        """Calculate bonus for pieces working together"""
+        trust = self.trust_matrix.get((piece1, piece2), 0.5)
+        recent = self.get_recent_cooperation(piece1, piece2)
+        return trust * (1 + recent * 0.5)  # Recent cooperation amplifies trust
+        
+    def get_recent_cooperation(self, piece1: str, piece2: str, window: int = 5) -> float:
+        """Calculate recent cooperation level between pieces"""
+        if not self.recent_interactions:
+            return 0.0
+            
+        # Look at last N interactions involving these pieces
+        relevant = [
+            i for i in self.recent_interactions[-window:]
+            if (i.piece1 == piece1 and i.piece2 == piece2) or
+               (i.piece1 == piece2 and i.piece2 == piece1)
+        ]
+        
+        if not relevant:
+            return 0.0
+            
+        # Calculate average impact of cooperative interactions
+        cooperative = [i for i in relevant if i.type in 
+                      (InteractionType.COOPERATION, InteractionType.SUPPORT)]
+        if not cooperative:
+            return 0.0
+            
+        return sum(i.impact for i in cooperative) / len(cooperative)
+
+@dataclass
+class PieceInteractionObserver:
+    """Observes and tracks interactions for a specific chess piece"""
+    piece: 'ChessPieceAgent'
+    relationship_network: RelationshipNetwork
+    
+    def on_game_moment(self, moment: GameMoment):
+        """React to a game moment by updating piece emotional state"""
+        # Only react if this piece is involved
+        piece_type = self.piece.personality.name[0].upper()  # Get piece type from name
+        if piece_type in moment.impact:
+            self.piece.emotional_state.apply_impact(moment.impact[piece_type])
+            
+    def on_relationship_change(self, piece1: str, piece2: str, change: float):
+        """React to relationship changes involving this piece"""
+        piece_type = self.piece.personality.name[0].upper()
+        if piece1 == piece_type or piece2 == piece_type:
+            # Update emotional state based on relationship change
+            trust_impact = {"trust": change * 0.5}
+            self.piece.emotional_state.apply_impact(trust_impact)
+            
+            # Get cooperation bonus from relationship network
+            other_piece = piece2 if piece1 == piece_type else piece1
+            bonus = self.relationship_network.get_support_bonus(piece_type, other_piece)
+            
+            # Apply cooperation bonus to morale
+            if bonus > 0:
+                self.piece.emotional_state.apply_impact({"morale": bonus * 0.3})
+
+class PersonalityTrait(Enum):
+    """Core personality traits that influence behavior and interactions"""
+    DRAMATIC = "dramatic"           # Queen's flair, Knight's quests
+    ANALYTICAL = "analytical"       # Bishop's preaching, King's theories
+    PROTECTIVE = "protective"       # Rook's fortresses, King's safety
+    REVOLUTIONARY = "revolutionary" # Pawn's ambitions
+    ADVENTUROUS = "adventurous"     # Knight's quests
+    NEUROTIC = "neurotic"           # King's anxiety, Rook's agoraphobia
+    ZEALOUS = "zealous"             # Bishop's conversion attempts
+    THEATRICAL = "theatrical"       # Queen's drama
+
+@dataclass
+class InteractionProfile:
+    """Defines how a piece tends to interact with others"""
+    primary_traits: List[PersonalityTrait]
+    cooperation_style: str  # How they work with others
+    conflict_style: str     # How they handle disagreements
+    leadership_style: str   # How they influence others
+
+@dataclass
+class GameMemory:
+    """Tracks significant game events and their emotional impact"""
+    key_moments: List[GameMoment] = field(default_factory=list)
+    narrative_threads: Dict[str, List[str]] = field(default_factory=dict)
+    emotional_triggers: Dict[str, List[Trigger]] = field(default_factory=dict)
+    
+    def record_moment(self, position: Position, move: str, 
+                     emotional_impact: Dict[str, float]):
+        """Record a significant game moment"""
+        moment = GameMoment(
+            position=position,
+            move=move,
+            impact=emotional_impact,
+            turn=len(self.key_moments) + 1,
+            narrative="",  # Will be generated
+            participants=[]  # Will be determined
+        )
+        self.key_moments.append(moment)
+        
+        # Update narrative threads
+        piece = move[0]  # Get piece type from move
+        if piece not in self.narrative_threads:
+            self.narrative_threads[piece] = []
+        self.narrative_threads[piece].append(
+            self.generate_moment_narrative(moment))
+        
+        # Update emotional triggers
+        if abs(max(emotional_impact.values())) > 0.2:
+            if piece not in self.emotional_triggers:
+                self.emotional_triggers[piece] = []
+            self.emotional_triggers[piece].append(
+                Trigger(
+                    pattern=position.fen,  # Simplified for now
+                    impacts=emotional_impact,
+                    memory=self.generate_moment_narrative(moment),
+                    turn=len(self.key_moments)
+                )
+            )
+    
+    def generate_moment_narrative(self, moment: GameMoment) -> str:
+        """Generate narrative description of a moment"""
+        # Simplified for now
+        return f"Turn {moment.turn}: Move {moment.move} played"
+    
+    def generate_argument_context(self, piece: str, 
+                                position: Position) -> str:
+        """Generate contextual argument based on piece's history"""
+        # Get piece's narrative thread
+        thread = self.narrative_threads.get(piece, [])
+        
+        # Get relevant triggers
+        triggers = self.emotional_triggers.get(piece, [])
+        active_triggers = [
+            t for t in triggers
+            if t.pattern in position.fen  # Simplified pattern matching
+        ]
+        
+        # Combine into context
+        context = []
+        if thread:
+            context.append(f"Remembering: {thread[-1]}")
+        if active_triggers:
+            context.append(f"Feeling: {active_triggers[-1].memory}")
+            
+        return " ".join(context) if context else ""
+
+
 
 @dataclass
 class LLMContext:

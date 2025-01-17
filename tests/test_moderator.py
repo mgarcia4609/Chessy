@@ -92,9 +92,9 @@ def test_winning_proposal_selection(default_moderator, starting_position):
     mediator = default_moderator.interaction_mediator
     assert len(mediator.relationship_network.recent_interactions) > 0
     
-    # Verify it was recorded as cooperation
+    # Verify it was recorded as support
     last_interaction = mediator.relationship_network.recent_interactions[-1]
-    assert last_interaction.type == "cooperation"
+    assert last_interaction.type == InteractionType.SUPPORT
     assert last_interaction.impact > 0
 
 def test_debate_consensus_effects(default_moderator, starting_position):
@@ -143,7 +143,7 @@ def test_interaction_recording(default_moderator):
     # Verify sacrifice was recorded
     interactions = default_moderator.interaction_mediator.relationship_network.recent_interactions
     sacrifice = next(
-        (i for i in interactions if i.type == "sacrifice"),
+        (i for i in interactions if i.type == InteractionType.SACRIFICE),
         None
     )
     
@@ -172,7 +172,7 @@ def test_emotional_state_influence(default_moderator, starting_position):
     
     # Arguments should reflect confidence
     assert any(
-        "confident" in p.argument.lower() or
-        "bold" in p.argument.lower()
+        "daring" in p.argument.lower() or
+        "noble" in p.argument.lower()
         for p in knight_proposals
     ) 

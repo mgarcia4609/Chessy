@@ -53,14 +53,13 @@ class ChessEngine:
     
     def set_position(self, fen: str = None, moves: list = None):
         """Set the current position"""
-        if fen:
+        if fen: # If we get a FEN string, use it directly
             self._board = chess.Board(fen)
-        else:
+        else: # Otherwise, we assume a starting position and need to make moves
             self._board = chess.Board()
-        
-        if moves:
-            for move in moves:
-                self._board.push(chess.Move.from_uci(move))
+            if moves:
+                for move in moves:
+                    self._board.push(chess.Move.from_uci(move))
                 
     def get_legal_moves(self) -> List[str]:
         """Get list of legal moves in UCI format"""

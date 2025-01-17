@@ -7,6 +7,7 @@ from chess_engine.sunfish_wrapper import ChessEngine
 from debate_system.protocols import (
     DebateRound,
     MoveProposal,
+    PieceInteractionObserver,
     Position,
     GameMoment,
     EmotionalState,
@@ -118,27 +119,19 @@ class StandardDebate(DebateStrategy):
         """Gather move proposals from all pieces that can move"""
         proposals = []
         board = chess.Board(position.fen)
-        print("\n")
-        print(f"{board}")
         
         for move_uci in moves:
-            print(f"move_uci: {move_uci}")
             move = chess.Move.from_uci(move_uci)
             from_square = move.from_square
-            print(f"from_square: {from_square}")
 
             piece = board.piece_at(from_square)
-            print(f"piece: {piece}")
             if not piece or not piece.color == chess.WHITE:
                 continue
                 
             piece_type = piece.symbol().upper()
-            print(f"piece_type: {piece_type}")
             if piece_type in pieces:
                 agent = pieces[piece_type]
-                print(f"agent: {agent}")
                 proposal = agent.evaluate_move(position, move_uci)
-                print(f"proposal: {proposal}")
                 if proposal:
                     proposals.append(proposal)
         
@@ -169,10 +162,16 @@ class DebateModerator:
         self.caretaker = AgentCaretaker()
         self.debate_history: List[DebateRound] = []
         
-        # Initialize pieces and register with mediator
+        # Initialize pieces
         self.pieces = pieces
+        
+        # Create and register observers for each piece
         for piece in pieces.values():
-            self.interaction_mediator.register(piece)
+            observer = PieceInteractionObserver(
+                piece=piece,
+                relationship_network=self.interaction_mediator.relationship_network
+            )
+            self.interaction_mediator.register(observer)
 
     @classmethod
     def create_default(cls, engine: ChessEngine) -> 'DebateModerator':
@@ -235,6 +234,9 @@ class DebateModerator:
         # Update the debate with the winning proposal
         debate.winning_proposal = winning_proposal
         
+        if debate.has_consensus:
+            debate.apply_consensus_impact(self.psychological_state)
+        
         return debate
     
     def select_winning_proposal(self, debate: DebateRound, choice_idx: int) -> MoveProposal:
@@ -246,17 +248,22 @@ class DebateModerator:
         debate.winning_proposal = winning_proposal
         
         # Register interaction for winning move
-        self.interaction_mediator.register_interaction(
-            Interaction(
-                piece1=winning_proposal.move[0],  # From square piece
-                piece2=winning_proposal.move[2],  # To square piece (if any)
-                type="cooperation" if choice_idx == 0 else "competition",
-                turn=len(self.debate_history),
-                move=winning_proposal.move,
-                impact=0.2 if choice_idx == 0 else -0.1,
-                context=winning_proposal.argument
+        # Use affected_pieces from the proposal for piece types
+        piece1 = winning_proposal.affected_pieces[0] if winning_proposal.affected_pieces else None
+        piece2 = winning_proposal.affected_pieces[1] if len(winning_proposal.affected_pieces) > 1 else None
+        
+        if piece1:  # Only register if we have at least one piece involved
+            self.interaction_mediator.register_interaction(
+                Interaction(
+                    piece1=piece1,
+                    piece2=piece2 if piece2 else piece1,  # Default to same piece if no second piece
+                    type=winning_proposal.interaction_type,
+                    turn=len(self.debate_history),
+                    move=winning_proposal.move,
+                    impact=0.2 if choice_idx == 0 else -0.1,
+                    context=winning_proposal.argument
+                )
             )
-        )
         
         return winning_proposal
     
