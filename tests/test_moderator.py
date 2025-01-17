@@ -98,6 +98,45 @@ def test_winning_proposal_selection(default_moderator, starting_position):
     assert last_interaction.type == InteractionType.SUPPORT
     assert last_interaction.impact > 0
 
+def test_opponent_interaction_types():
+    """Test that opponent interactions are properly typed"""
+    # Create a simple interaction for each opponent type
+    threat = Interaction(
+        piece1="e2",  # White pawn
+        piece2="black_knight",  # Enemy piece
+        type=InteractionType.THREAT,
+        turn=1,
+        move="g1f3",  # Knight threatens pawn
+        impact=-0.3,  # Negative impact on confidence
+        context="Enemy knight threatens our pawn"
+    )
+    assert threat.type == InteractionType.THREAT
+    assert threat.impact < 0
+    
+    trauma = Interaction(
+        piece1="e4",  # White pawn
+        piece2="black_knight",
+        type=InteractionType.TRAUMA,
+        turn=2,
+        move="f6e4",  # Knight captures pawn
+        impact=-0.5,  # Major negative impact
+        context="Our pawn was captured by the enemy knight"
+    )
+    assert trauma.type == InteractionType.TRAUMA
+    assert trauma.impact < threat.impact  # Trauma should be more impactful than threat
+    
+    stalking = Interaction(
+        piece1="f3",  # White knight
+        piece2="black_bishop",
+        type=InteractionType.STALKING,
+        turn=3,
+        move="c8h3",  # Bishop repeatedly targeting knight
+        impact=-0.2,  # Moderate negative impact
+        context="That bishop keeps threatening our knight"
+    )
+    assert stalking.type == InteractionType.STALKING
+    assert -0.5 < stalking.impact < 0  # Moderate negative impact
+
 def test_debate_consensus_effects(default_moderator, starting_position):
     """Test how debate consensus affects team psychology"""
     moves = ["e2e4"]  # Simple position with clear best move

@@ -17,6 +17,13 @@ class InteractionType(Enum):
     ABANDONMENT = "abandonment"   # One piece left another vulnerable
     RESCUE = "rescue"             # One piece saved another from capture
     COMPETITION = "competition"   # Pieces argued for different plans
+    
+    # Opponent-triggered interactions
+    THREAT = "threat"             # A piece is put under direct attack
+    TRAUMA = "trauma"             # A piece is captured (affects survivors)
+    STALKING = "stalking"         # Repeated threats from same enemy piece
+    BLOCKADE = "blockade"         # Being restricted/trapped by enemy pieces
+    RIVALRY = "rivalry"           # Develops from repeated interactions with enemy
 
 @dataclass
 class EngineAnalysis:
