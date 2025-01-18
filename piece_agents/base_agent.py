@@ -377,10 +377,11 @@ class ChessPieceAgent:
         # Handle captures
         if context.is_capture:
             affected_pieces.append(context.captured_piece_type)
-            # Is it a sacrifice?
-            if context.gives_discovered_attack or context.is_check:
-                return InteractionType.SACRIFICE, affected_pieces
             return InteractionType.COMPETITION, affected_pieces
+        
+        # Is it a sacrifice?
+        if context.is_blocking or context.gives_discovered_attack or context.is_check:
+            return InteractionType.SACRIFICE, affected_pieces        
             
         # Handle castling (cooperation between king and rook)
         if context.is_castle:

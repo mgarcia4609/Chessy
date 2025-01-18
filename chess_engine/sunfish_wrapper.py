@@ -43,6 +43,7 @@ class MoveContext:
     promotion_piece_type: Optional[str]
     is_en_passant: bool
     gives_discovered_attack: bool
+    is_blocking: bool  # Whether this move blocks enemy attacks
 
 
 class ChessEngine:
@@ -287,7 +288,8 @@ class ChessEngine:
             is_promotion=chess_move.promotion is not None,
             promotion_piece_type=chess.piece_name(chess_move.promotion) if chess_move.promotion else None,
             is_en_passant=before.is_en_passant(chess_move),
-            gives_discovered_attack=self._check_discovered_attacks(before, chess_move)
+            gives_discovered_attack=self._check_discovered_attacks(before, chess_move),
+            is_blocking=self._check_blocked_attacks(before, chess_move)
         )
         
         # Restore position
@@ -295,19 +297,90 @@ class ChessEngine:
         return context
         
     def _check_discovered_attacks(self, position: chess.Board, move: chess.Move) -> bool:
-        """Check if move reveals any discovered attacks"""
-        # Make move
-        position.push(move)
+        """Check if move reveals any discovered attacks
         
-        # Look for any new attacks that weren't possible before
-        has_discovered = False
-        for square in chess.SQUARES:
-            if position.is_attacked_by(not position.turn, square):
-                # Check if this attack wasn't possible before
-                position.pop()
-                if not position.is_attacked_by(not position.turn, square):
-                    has_discovered = True
-                position.push(move)
+        A discovered attack occurs when moving a piece reveals an attack
+        from a different piece that was previously blocked.
+        """
+        from_square = move.from_square
+        to_square = move.to_square
+        
+        # Get all our pieces except the one that's moving
+        our_pieces = {
+            square: piece for square, piece in position.piece_map().items()
+            if piece.color == position.turn and square != from_square
+        }
+        
+        # Get all enemy pieces
+        enemy_pieces = {
+            square: piece for square, piece in position.piece_map().items()
+            if piece.color != position.turn
+        }
+        
+        # For each of our pieces, check if it gains new attacks after the move
+        for our_square, our_piece in our_pieces.items():
+            # Skip non-sliding pieces (only sliding pieces can have discovered attacks)
+            if our_piece.piece_type not in [chess.BISHOP, chess.ROOK, chess.QUEEN]:
+                continue
                 
-        position.pop()
-        return has_discovered
+            # Get attacked squares before the move
+            before_squares = chess.SquareSet(position.attacks(our_square))
+            
+            # Make the move and get new attacked squares
+            position.push(move)
+            after_squares = chess.SquareSet(position.attacks(our_square))
+            position.pop()
+            
+            # Find newly attacked squares
+            new_squares = after_squares - before_squares
+            
+            # Check if any enemy pieces are in newly attacked squares
+            for enemy_square in enemy_pieces:
+                if enemy_square in new_squares:
+                    return True
+                    
+        return False
+
+    def _check_blocked_attacks(self, position: chess.Board, move: chess.Move) -> bool:
+        """Check if move blocks any enemy attacks
+        
+        This is similar to discovered attacks but from the enemy's perspective - 
+        we check if any enemy pieces lose attacks after our move.
+        """
+        to_square = move.to_square
+        
+        # Get all enemy pieces
+        enemy_pieces = {
+            square: piece for square, piece in position.piece_map().items()
+            if piece.color != position.turn
+        }
+        
+        # For each enemy piece, check if it loses attacks after our move
+        for enemy_square, enemy_piece in enemy_pieces.items():
+            # Get attacked squares before the move
+            before_squares = chess.SquareSet(position.attacks(enemy_square))
+            
+            # Make the move and get new attacked squares
+            position.push(move)
+            after_squares = chess.SquareSet(position.attacks(enemy_square))
+            position.pop()
+            
+            # Find lost attack squares
+            lost_squares = before_squares - after_squares
+            
+            # If any attacks were lost, this move is blocking
+            if lost_squares:
+                return True
+                    
+        return False
+
+    def _can_piece_attack_along_ray(self, piece_type: chess.PieceType, dx: int, dy: int) -> bool:
+        """Helper method to determine if a piece type can attack along a given direction"""
+        if piece_type == chess.QUEEN:
+            print(f"QUEEN can attack along {dx}, {dy}")
+            return True
+        if piece_type == chess.ROOK:
+            return dx == 0 or dy == 0
+        if piece_type == chess.BISHOP:
+            return abs(dx) == abs(dy)
+        return False

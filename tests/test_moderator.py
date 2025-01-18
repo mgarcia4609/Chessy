@@ -239,7 +239,7 @@ def test_interaction_recording(default_moderator):
     """Test recording and impact of piece interactions"""
     # Setup a position where knight can save queen
     sacrifice_position = Position(
-        fen="r1bqkb1r/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4",
+        fen="r1bkqb1r/pppp1ppp/2n5/8/2B5/5N2/PPPP1PPP/RNBQK2R w KQ - 0 4",
         move_history=["e2e4", "e7e5", "g1f3", "b8c6", "f1c4"]
     )
     

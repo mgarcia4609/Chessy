@@ -151,3 +151,47 @@ def test_get_potential_attacks(engine):
     assert chess.parse_square("f3") in attacked
     assert chess.parse_square("h3") in attacked
     assert chess.parse_square("e2") in attacked  # Square with friendly pawn
+    
+def test_discovered_attacks(engine):
+    """Test detection of discovered attacks in various positions"""
+    
+    # Test 1: Basic discovered attack
+    # White bishop behind white pawn, targeting black king
+    engine.set_position(fen="8/8/k7/1r6/8/3P4/8/4KB2 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("d3d4")) == True
+    
+    # Test 2: No discovered attack when moving the attacking piece itself
+    engine.set_position(fen="k7/8/8/8/8/4B3/8/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("e3c5")) == False
+    
+    # Test 3: No discovered attack in regular capture
+    engine.set_position(fen="k7/8/8/8/4p3/3P4/8/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("e3e4")) == False
+    
+    # Test 4: Discovered attack with rook behind bishop
+    engine.set_position(fen="4k3/4b3/8/8/8/4B3/4R3/3K4 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("e3d4")) == True
+    
+    # Test 5: No discovered attack when no piece behind
+    engine.set_position(fen="k7/8/8/8/8/4N3/8/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("e3d5")) == False
+    
+    # Test 6: Discovered attack with queen behind pawn
+    engine.set_position(fen="k7/8/8/8/8/3QPp2/8/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("e3e4")) == True
+    
+    # Test 7: Multiple discovered attacks (bishop and rook)
+    engine.set_position(fen="3r4/8/5k2/8/Q2P3b/2B5/8/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("d4d5")) == True
+    
+    # Test 8: No discovered attack when line is still blocked
+    engine.set_position(fen="k7/8/8/8/4p3/4P3/4B3/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("e3d4")) == False
+    
+    # Test 9: Discovered check
+    engine.set_position(fen="k7/8/8/8/8/5P2/6B1/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("f3f4")) == True
+    
+    # Test 10: No discovered attack on empty square
+    engine.set_position(fen="8/8/8/8/8/4P3/4R3/K7 w - - 0 1")
+    assert engine._check_discovered_attacks(engine._board, chess.Move.from_uci("e3e4")) == False
