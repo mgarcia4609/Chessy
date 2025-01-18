@@ -1,8 +1,9 @@
 """Protocols and data structures for the debate chess system"""
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from typing import TYPE_CHECKING
+from typing import Protocol
 
 if TYPE_CHECKING:
     from piece_agents.base_agent import ChessPieceAgent
@@ -455,12 +456,123 @@ class GameMemory:
 
 @dataclass
 class LLMContext:
-    """Context bundle for LLM character inference"""
-    personality_template: PersonalityTemplate
-    recent_interactions: List[Interaction]
-    game_memory: GameMemory
+    """Context bundle for LLM operations"""
+    game_state: Position
     psychological_state: PsychologicalState
-    debate_history: List[DebateRound]
+    game_memory: GameMemory
+    affected_pieces: List[str]
+    interaction_type: Optional[InteractionType] = None
+    debate_history: Optional[List[DebateRound]] = None
+
+@dataclass
+class InferenceResult:
+    """Result from an LLM inference operation"""
+    content: str
+    confidence: float
+    token_usage: int
+    metadata: Dict[str, Any]
+    cached: bool = False
+
+class LLMServiceProtocol(Protocol):
+    """Protocol for LLM service operations"""
+    async def infer(self, prompt: str, context: LLMContext) -> InferenceResult: ...
+    def get_token_usage(self) -> int: ...
+    def clear_cache(self) -> None: ...
+
+class PromptManagerProtocol(Protocol):
+    """Protocol for managing and generating prompts"""
+    def get_character_prompt(self, piece: ChessPieceAgent, context: LLMContext) -> str: ...
+    def get_debate_prompt(self, debate: DebateRound, context: LLMContext) -> str: ...
+    def get_narrative_prompt(self, moment: GameMoment, context: LLMContext) -> str: ...
+    def add_prompt_template(self, name: str, template: str) -> None: ...
+
+class InferenceObserverProtocol(Protocol):
+    """Protocol for observers of LLM inference events"""
+    async def on_character_inference(self, piece: ChessPieceAgent, result: InferenceResult) -> None: ...
+    async def on_debate_inference(self, debate: DebateRound, result: InferenceResult) -> None: ...
+    async def on_narrative_inference(self, moment: GameMoment, result: InferenceResult) -> None: ...
+
+class InferenceQueueProtocol(Protocol):
+    """Protocol for managing inference queue"""
+    async def enqueue(self, 
+        operation_type: str,
+        context: LLMContext,
+        priority: int = 0
+    ) -> None: ...
+    async def process_queue(self) -> None: ...
+    def get_queue_status(self) -> Dict[str, int]: ...
+
+class CharacterInferenceProtocol(Protocol):
+    """Protocol for character-specific inference operations"""
+    async def infer_emotional_response(self, 
+        piece: ChessPieceAgent,
+        moment: GameMoment,
+        context: LLMContext
+    ) -> InferenceResult: ...
+    
+    async def infer_personality_evolution(self,
+        piece: ChessPieceAgent,
+        game_memory: GameMemory,
+        context: LLMContext
+    ) -> InferenceResult: ...
+    
+    async def infer_relationship_dynamics(self,
+        piece1: ChessPieceAgent,
+        piece2: ChessPieceAgent,
+        context: LLMContext
+    ) -> InferenceResult: ...
+
+class DebateInferenceProtocol(Protocol):
+    """Protocol for debate-specific inference operations"""
+    async def enrich_argument(self,
+        proposal: MoveProposal,
+        context: LLMContext
+    ) -> InferenceResult: ...
+    
+    async def infer_debate_dynamics(self,
+        debate: DebateRound,
+        context: LLMContext
+    ) -> InferenceResult: ...
+    
+    async def generate_counter_arguments(self,
+        proposal: MoveProposal,
+        opponents: List[ChessPieceAgent],
+        context: LLMContext
+    ) -> List[InferenceResult]: ...
+
+class NarrativeInferenceProtocol(Protocol):
+    """Protocol for narrative-specific inference operations"""
+    async def generate_moment_narrative(self,
+        moment: GameMoment,
+        context: LLMContext
+    ) -> InferenceResult: ...
+    
+    async def infer_character_arc(self,
+        piece: ChessPieceAgent,
+        game_memory: GameMemory,
+        context: LLMContext
+    ) -> InferenceResult: ...
+    
+    async def generate_relationship_narrative(self,
+        relationship_network: RelationshipNetwork,
+        context: LLMContext
+    ) -> InferenceResult: ...
+
+@dataclass
+class LLMConfig:
+    """Configuration for LLM operations"""
+    model_name: str
+    temperature: float
+    max_tokens: int
+    cache_enabled: bool = True
+    retry_attempts: int = 3
+    timeout_seconds: int = 30
+    batch_size: int = 1
+    priority_levels: Dict[str, int] = field(default_factory=lambda: {
+        "debate": 0,  # Highest priority
+        "character": 1,
+        "narrative": 2
+    })
 
 @dataclass
 class TeamPsychologyObserver:
