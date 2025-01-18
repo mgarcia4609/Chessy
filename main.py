@@ -6,7 +6,7 @@ from datetime import datetime
 
 from chess_engine.sunfish_wrapper import ChessEngine
 from debate_system.moderator import DebateModerator
-from debate_system.protocols import EmotionalState, Position, MoveProposal
+from debate_system.protocols import EmotionalState, InteractionType, Position, MoveProposal
 
 class DebateChessGame:
     """A chess game where pieces debate their moves"""
@@ -85,20 +85,86 @@ class DebateChessGame:
 
     def _show_move_impact(self, proposal: MoveProposal):
         """Display the psychological and relationship impact of a move"""
-        # Show team psychological impact
+        print("\n=== Move Impact Analysis ===")
+        
+        # Show tactical context first
+        if proposal.tactical_context:
+            print("\nTactical Elements:")
+            for element, value in proposal.tactical_context.items():
+                if value:
+                    print(f"   ⚔️  {element}")
+
+        # Show team psychological impact with emojis and more dramatic descriptions
         impacts = self.moderator.psychological_state.simulate_psychological_impact(proposal)
         if impacts:
-            print("\nTeam Psychological Impact:")
+            print("\n🎭 Team Psychological Impact:")
+            impact_descriptions = {
+                'morale': ('Spirit', '😤', '😰'),
+                'cohesion': ('Unity', '🤝', '💔'),
+                'coordination': ('Teamwork', '⚡', '💫'),
+                'leadership': ('Command', '👑', '👥'),
+                'confidence': ('Confidence', '💪', '😟')
+            }
+            
             for aspect, change in impacts.items():
-                print(f"   {aspect}: {'+' if change > 0 else ''}{change:.2f}")
+                desc, pos_emoji, neg_emoji = impact_descriptions.get(aspect, (aspect, '↑', '↓'))
+                emoji = pos_emoji if change > 0 else neg_emoji
+                magnitude = 'Massive' if abs(change) > 0.3 else 'Significant' if abs(change) > 0.1 else 'Slight'
+                direction = 'boost' if change > 0 else 'drop'
+                print(f"   {emoji} {magnitude} {direction} in {desc}: {'+' if change > 0 else ''}{change:.2f}")
         
-        # Show relationship changes
-        print("\nRelationship Changes:")
-        print("   " + self._format_relationship_changes(proposal))
+        # Show relationship changes with more detail
+        print("\n💫 Relationship Dynamics:")
+        network = self.moderator.interaction_mediator.relationship_network
+        changes = []
         
-        # Show overall team state
-        print("\nTeam Psychological State:")
-        print("   " + self._format_psychological_state())
+        # Show relationships between affected pieces
+        for i, piece1 in enumerate(proposal.affected_pieces):
+            for piece2 in proposal.affected_pieces[i+1:]:
+                trust = network.trust_matrix.get((piece1, piece2), 0.5)
+                support = network.get_support_bonus(piece1, piece2)
+                bond = "Strong" if trust > 0.7 else "Weak" if trust < 0.3 else "Moderate"
+                changes.append(f"   {piece1}-{piece2}: {bond} bond (trust={trust:.2f}, support={support:.2f})")
+        
+        if changes:
+            print("\n".join(changes))
+        else:
+            print("   No direct relationship changes")
+            
+        # Show recent interactions
+        recent = network.recent_interactions[-3:]  # Show last 3 interactions
+        if recent:
+            print("\n📜 Recent Interactions:")
+            for interaction in recent:
+                emoji = {
+                    InteractionType.SUPPORT: "🛡️",
+                    InteractionType.COOPERATION: "🤝",
+                    InteractionType.SACRIFICE: "💝",
+                    InteractionType.ABANDONMENT: "💔",
+                    InteractionType.RESCUE: "🦸",
+                    InteractionType.COMPETITION: "⚔️",
+                    InteractionType.THREAT: "⚠️",
+                    InteractionType.TRAUMA: "💥",
+                    InteractionType.STALKING: "👁️",
+                    InteractionType.BLOCKADE: "🚧",
+                    InteractionType.RIVALRY: "🏹"
+                }.get(interaction.type, "➡️")
+                print(f"   {emoji} {interaction.context}")
+        
+        # Show overall team state with visual indicators
+        print("\n🎭 Team Psychological State:")
+        state = self.moderator.psychological_state
+        metrics = [
+            ("Cohesion", state.cohesion, "🤝"),
+            ("Morale", state.morale, "⚡"),
+            ("Coordination", state.coordination, "🎯"),
+            ("Leadership", state.leadership, "👑")
+        ]
+        
+        for name, value, emoji in metrics:
+            bars = "█" * int(value * 10)
+            spaces = "░" * (10 - int(value * 10))
+            print(f"   {emoji} {name:<12} {bars}{spaces} {value:.2f}")
 
     def _check_game_over(self) -> Optional[str]:
         """Check if game is over and return outcome message if it is"""
@@ -123,27 +189,66 @@ class DebateChessGame:
 
     def _display_debate_proposals(self, debate):
         """Display all piece proposals from the debate"""
-        print("\nPiece Proposals:")
-        print("-"*50)
+        print("\n🎭 Piece Proposals:")
+        print("="*50)
+        
         for i, proposal in enumerate(debate.proposals, 1):
-            # Get the agent from the piece dictionary (first/only value)
             piece_agent = next(iter(proposal.piece.values()))
             print(f"\n{i}. {piece_agent.personality.name}'s Proposal:")
             print(f"   Move: {proposal.move}")
             print(f"   Score: {proposal.score:.2f}")
-            print(f"   Argument: {proposal.argument}")
-            print(f"   Emotional State: {self._format_emotional_state(piece_agent.emotional_state)}")
             
+            # Show argument with personality-appropriate emoji
+            personality_emoji = {
+                "dramatic": "🎭",
+                "analytical": "🔍",
+                "protective": "🛡️",
+                "revolutionary": "⚔️",
+                "adventurous": "🌟",
+                "neurotic": "😰",
+                "zealous": "✨",
+                "theatrical": "🎬"
+            }
+            trait = next((t for t in personality_emoji if t in piece_agent.personality.description.lower()), "")
+            emoji = personality_emoji.get(trait, "💭")
+            print(f"   {emoji} Argument: {proposal.argument}")
+            
+            # Show emotional state with visual bars and emojis
+            print("   Emotional State:")
+            emotions = {
+                "confidence": ("💪", piece_agent.emotional_state.confidence),
+                "morale": ("⚡", piece_agent.emotional_state.morale),
+                "trust": ("🤝", piece_agent.emotional_state.trust),
+                "aggression": ("⚔️ ", piece_agent.emotional_state.aggression)
+            }
+            
+            for emotion, (emoji, value) in emotions.items():
+                bars = "█" * int(value * 10)
+                spaces = "░" * (10 - int(value * 10))
+                state = "High" if value > 0.7 else "Low" if value < 0.3 else "Moderate"
+                print(f"      {emoji} {emotion:<10} {bars}{spaces} {value:.2f} ({state})")
+            
+            # Show tactical elements with emojis
             if any(proposal.tactical_context.values()):
-                print("   Tactical Elements:", ", ".join(
-                    k for k, v in proposal.tactical_context.items() if v
-                ))
+                print("   Tactical Elements:")
+                tactical_emojis = {
+                    "is_capture": "⚔️ Capture",
+                    "is_check": "👑 Check",
+                    "is_castle": "🏰 Castle",
+                    "gives_discovered_attack": "🎯 Discovered Attack",
+                    "is_promotion": "⭐ Promotion",
+                    "has_fork": "🔱 Fork",
+                    "has_discovered_attack": "🎯 Discovered Attack"
+                }
+                for element, value in proposal.tactical_context.items():
+                    if value:
+                        print(f"      {tactical_emojis.get(element, element)}")
 
-        # Show consensus information
+        # Show consensus information with appropriate emoji
         if debate.has_consensus:
-            print("\nThe pieces are in strong agreement!")
+            print("\n🤝 The pieces are in strong agreement!")
         else:
-            print("\nThe pieces have differing opinions on the best move.")
+            print("\n💭 The pieces have differing opinions on the best move.")
 
     def _get_player_choice(self, debate) -> MoveProposal:
         """Get player's choice of move from debate proposals"""
@@ -254,7 +359,7 @@ class DebateChessGame:
         debate = self.moderator.conduct_debate(position, legal_moves)
 
         # Display debate and get player choice
-        #self._display_debate_proposals(debate)
+        self._display_debate_proposals(debate)
         
         # Display current game state
         self._display_game_state()
