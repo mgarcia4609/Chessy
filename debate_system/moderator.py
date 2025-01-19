@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from chess_engine.sunfish_wrapper import ChessEngine
 from debate_system.protocols import (
     DebateRound,
+    LLMConfig,
     MoveProposal,
     PieceInteractionObserver,
     Position,
@@ -18,6 +19,7 @@ from debate_system.protocols import (
     RelationshipNetwork,
     TeamPsychologyObserver
 )
+from llm.llm_service import LLMInferenceObserver, LLMService
 from piece_agents.base_agent import ChessPieceAgent
 from piece_agents.personality_factory import PersonalityFactory
 from piece_agents.piece_factory import PieceAgentFactory
@@ -243,7 +245,7 @@ class DebateCommand:
 class DebateModerator:
     """Manages the debate process between chess pieces"""
     
-    def __init__(self, pieces: Dict[str, ChessPieceAgent]):
+    def __init__(self, pieces: Dict[str, ChessPieceAgent], llm_config: Optional[LLMConfig] = None):
         self.interaction_mediator = InteractionMediator()
         self.debate_strategy = StandardDebate()
         self.psychological_state = PsychologicalState()
@@ -267,17 +269,27 @@ class DebateModerator:
             moderator=self
         )
         self.interaction_mediator.register(team_observer)
+        
+        # Register LLM inference observer if config provided
+        if llm_config:
+            llm_service = LLMService(llm_config)
+            llm_observer = LLMInferenceObserver(
+                service=llm_service,
+                game_memory=self.game_memory,
+                psychological_state=self.psychological_state
+            )
+            self.interaction_mediator.register(llm_observer)
 
     @classmethod
-    def create_default(cls, engine: ChessEngine) -> 'DebateModerator':
+    def create_default(cls, engine: ChessEngine, llm_config: Optional[LLMConfig] = None) -> 'DebateModerator':
         """Create a moderator with default pieces"""
         factory = PersonalityFactory()
         personalities = factory.create_all_personalities()
         pieces = PieceAgentFactory.create_all_agents(personalities, engine)
-        return cls(pieces)
+        return cls(pieces, llm_config)
     
     @classmethod
-    def create_themed(cls, engine: ChessEngine, theme: str) -> 'DebateModerator':
+    def create_themed(cls, engine: ChessEngine, theme: str, llm_config: Optional[LLMConfig] = None) -> 'DebateModerator':
         """Create a moderator with themed piece personalities"""
         factory = PersonalityFactory()
         personalities = {
@@ -285,7 +297,7 @@ class DebateModerator:
             for piece_type in ['P', 'N', 'B', 'R', 'Q', 'K']
         }
         pieces = PieceAgentFactory.create_all_agents(personalities, engine)
-        return cls(pieces)
+        return cls(pieces, llm_config)
 
     def conduct_debate(self, position: Position, moves: List[str]) -> DebateRound:
         """Conduct a debate round using command pattern"""
