@@ -1,10 +1,10 @@
 """OpenAI-based LLM service implementation"""
 import json
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional, TYPE_CHECKING
 from functools import lru_cache
 import logging
-from debate_system.moderator import InteractionObserver
+
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
@@ -19,6 +19,8 @@ from debate_system.protocols import (
     InteractionType,
     PsychologicalState
 )
+
+from debate_system.protocols import InteractionObserver
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +195,8 @@ class LLMInferenceObserver(InteractionObserver):
         if abs(change) > 0.3:  # Significant relationship change
             context = LLMContext(
                 game_state=self.game_memory.current_position,
-                affected_pieces=[piece1, piece2],
+                psychological_state=self.psychological_state,
+                game_memory=self.game_memory,
                 interaction_type=InteractionType.RELATIONSHIP
             )
             await self._handle_narrative_inference(
@@ -202,14 +205,9 @@ class LLMInferenceObserver(InteractionObserver):
                 context=context
             )
 
-    async def on_debate_round(self, debate: DebateRound):
+    async def on_debate_round(self, context: LLMContext):
         """Route debate events to debate inference"""
-        context = LLMContext(
-            game_state=debate.position,
-            affected_pieces=[p.piece_id for p in debate.participants],
-            interaction_type=InteractionType.DEBATE
-        )
-        await self._handle_debate_inference(debate, context)
+        await self._handle_debate_inference(context)
 
     # Private handlers that will eventually use our inference protocols
     async def _handle_character_inference(self, moment: GameMoment, context: LLMContext):
@@ -219,10 +217,10 @@ class LLMInferenceObserver(InteractionObserver):
             context
         )
 
-    async def _handle_debate_inference(self, debate: DebateRound, context: LLMContext):
+    async def _handle_debate_inference(self, context: LLMContext):
         """Handle debate-based inference"""
         await self.service.infer(
-            self._build_debate_prompt(debate),
+            self._build_debate_prompts(context),
             context
         )
 

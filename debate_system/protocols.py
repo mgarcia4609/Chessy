@@ -25,6 +25,17 @@ class InteractionType(Enum):
     STALKING = "stalking"         # Repeated threats from same enemy piece
     BLOCKADE = "blockade"         # Being restricted/trapped by enemy pieces
     RIVALRY = "rivalry"           # Develops from repeated interactions with enemy
+    
+    # Debate-specific interactions
+    DEBATE_START = "debate_start" # The beginning of a debate with LLM inference
+    DEBATE_ROUND = "debate_round" # A round of debate with LLM inference
+    DEBATE_END = "debate_end"     # The conclusion of a debate with LLM inference
+
+class InteractionObserver(Protocol):
+    """Protocol for pieces that observe interactions"""
+    def on_game_moment(self, moment: 'GameMoment'): ...
+    def on_relationship_change(self, piece1: str, piece2: str, change: float): ...
+    def on_debate_round(self, context: 'LLMContext'): ...
 
 @dataclass
 class EngineAnalysis:
@@ -457,10 +468,9 @@ class GameMemory:
 @dataclass
 class LLMContext:
     """Context bundle for LLM operations"""
-    game_state: Position
+    debate_round: DebateRound
     psychological_state: PsychologicalState
     game_memory: GameMemory
-    affected_pieces: List[str]
     interaction_type: Optional[InteractionType] = None
     debate_history: Optional[List[DebateRound]] = None
 
@@ -481,14 +491,14 @@ class LLMServiceProtocol(Protocol):
 
 class PromptManagerProtocol(Protocol):
     """Protocol for managing and generating prompts"""
-    def get_character_prompt(self, piece: ChessPieceAgent, context: LLMContext) -> str: ...
+    def get_character_prompt(self, piece: 'ChessPieceAgent', context: LLMContext) -> str: ...
     def get_debate_prompt(self, debate: DebateRound, context: LLMContext) -> str: ...
     def get_narrative_prompt(self, moment: GameMoment, context: LLMContext) -> str: ...
     def add_prompt_template(self, name: str, template: str) -> None: ...
 
 class InferenceObserverProtocol(Protocol):
     """Protocol for observers of LLM inference events"""
-    async def on_character_inference(self, piece: ChessPieceAgent, result: InferenceResult) -> None: ...
+    async def on_character_inference(self, piece: 'ChessPieceAgent', result: InferenceResult) -> None: ...
     async def on_debate_inference(self, debate: DebateRound, result: InferenceResult) -> None: ...
     async def on_narrative_inference(self, moment: GameMoment, result: InferenceResult) -> None: ...
 
@@ -505,20 +515,20 @@ class InferenceQueueProtocol(Protocol):
 class CharacterInferenceProtocol(Protocol):
     """Protocol for character-specific inference operations"""
     async def infer_emotional_response(self, 
-        piece: ChessPieceAgent,
+        piece: 'ChessPieceAgent',
         moment: GameMoment,
         context: LLMContext
     ) -> InferenceResult: ...
     
     async def infer_personality_evolution(self,
-        piece: ChessPieceAgent,
+        piece: 'ChessPieceAgent',
         game_memory: GameMemory,
         context: LLMContext
     ) -> InferenceResult: ...
     
     async def infer_relationship_dynamics(self,
-        piece1: ChessPieceAgent,
-        piece2: ChessPieceAgent,
+        piece1: 'ChessPieceAgent',
+        piece2: 'ChessPieceAgent',
         context: LLMContext
     ) -> InferenceResult: ...
 
@@ -536,7 +546,7 @@ class DebateInferenceProtocol(Protocol):
     
     async def generate_counter_arguments(self,
         proposal: MoveProposal,
-        opponents: List[ChessPieceAgent],
+        opponents: List['ChessPieceAgent'],
         context: LLMContext
     ) -> List[InferenceResult]: ...
 
@@ -548,7 +558,7 @@ class NarrativeInferenceProtocol(Protocol):
     ) -> InferenceResult: ...
     
     async def infer_character_arc(self,
-        piece: ChessPieceAgent,
+        piece: 'ChessPieceAgent',
         game_memory: GameMemory,
         context: LLMContext
     ) -> InferenceResult: ...

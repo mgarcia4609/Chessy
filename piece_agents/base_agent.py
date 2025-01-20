@@ -1,12 +1,10 @@
 from dataclasses import dataclass, field
 from typing import List, Set, TYPE_CHECKING, Dict, Tuple, Optional
 import chess
-
-from chess_engine.sunfish_wrapper import ChessEngine, MoveContext
 from debate_system.protocols import InteractionType, Position, MoveProposal, EngineAnalysis, PersonalityConfig, EmotionalState, Interaction
-
+from chess_engine.sunfish_wrapper import ChessEngine, MoveContext
 if TYPE_CHECKING:
-    import chess
+    from chess_engine.sunfish_wrapper import ChessEngine, MoveContext
 
 
 @dataclass
@@ -23,12 +21,12 @@ class TacticalOpportunity:
 @dataclass
 class ChessPieceAgent:
     """Base class for chess piece agents"""
-    engine: ChessEngine
-    personality: PersonalityConfig
-    emotional_state: EmotionalState
+    engine: 'ChessEngine'
+    personality: 'PersonalityConfig'
+    emotional_state: 'EmotionalState'
     board_piece: Optional['chess.Piece'] = None
     square: Optional['chess.Square'] = None
-    _recent_interactions: List[Interaction] = field(default_factory=list)
+    _recent_interactions: List['Interaction'] = field(default_factory=list)
     _tactical_cache: Dict[str, List[TacticalOpportunity]] = field(default_factory=dict)
 
     @property
@@ -44,7 +42,7 @@ class ChessPieceAgent:
     #     for option, value in self.personality.options.items():
     #         self.engine.set_option(option, value)
     
-    def evaluate_move(self, position: Position, move: str, piece_id: str, think_time: int = 500) -> MoveProposal:
+    def evaluate_move(self, position: 'Position', move: str, piece_id: str, think_time: int = 500) -> 'MoveProposal':
         """Evaluate a potential move
         
         Args:
@@ -105,7 +103,7 @@ class ChessPieceAgent:
             affected_pieces=affected_pieces
         )
     
-    def _calculate_weighted_score(self, analysis: EngineAnalysis) -> float:
+    def _calculate_weighted_score(self, analysis: 'EngineAnalysis') -> float:
         """Calculate weighted score based on personality
         
         This is where different piece personalities can emphasize different aspects
@@ -139,7 +137,7 @@ class ChessPieceAgent:
         """Get squares attacked by piece at given square"""
         return self.engine.get_attacked_squares(square)
     
-    def _find_tactical_opportunities(self, position: Position, move: str) -> List[TacticalOpportunity]:
+    def _find_tactical_opportunities(self, position: 'Position', move: str) -> List[TacticalOpportunity]:
         """Base implementation for finding tactical opportunities
         
         Subclasses can override to add piece-specific opportunities
@@ -216,7 +214,7 @@ class ChessPieceAgent:
         return opportunities
 
     def _find_discovered_attacks(self, piece_square: 'chess.Square',
-                               position: Position, move: str) -> List[TacticalOpportunity]:
+                               position: 'Position', move: str) -> List[TacticalOpportunity]:
         """Find opportunities where piece move reveals attack from another piece
         
         Args:
@@ -359,7 +357,7 @@ class ChessPieceAgent:
         
         return f"Moving away reveals our {our_name}'s attack on their {enemy_name} ({value:0.1f})"
 
-    def _generate_argument(self, position: Position, move: str, analysis: EngineAnalysis) -> str:
+    def _generate_argument(self, position: 'Position', move: str, analysis: 'EngineAnalysis') -> str:
         """Generate an argument for the move based on personality and analysis
         
         This should be overridden by specific piece agents to provide
@@ -369,38 +367,38 @@ class ChessPieceAgent:
             "Specific piece agents must implement _generate_argument"
         )
 
-    def _analyze_interaction(self, context: MoveContext, 
-                           opportunities: List[TacticalOpportunity]) -> Tuple[InteractionType, List[str]]:
+    def _analyze_interaction(self, context: 'MoveContext', 
+                           opportunities: List[TacticalOpportunity]) -> Tuple['InteractionType', List[str]]:
         """Analyze the social/emotional implications of a move"""
         affected_pieces = [context.piece_type]
         
         # Handle captures
         if context.is_capture:
             affected_pieces.append(context.captured_piece_type)
-            return InteractionType.COMPETITION, affected_pieces
+            return 'InteractionType.COMPETITION', affected_pieces
         
         # Is it a sacrifice?
         if context.is_blocking or context.gives_discovered_attack or context.is_check:
-            return InteractionType.SACRIFICE, affected_pieces        
+            return 'InteractionType.SACRIFICE', affected_pieces        
             
         # Handle castling (cooperation between king and rook)
         if context.is_castle:
             affected_pieces.append('R')  # Rook is involved
-            return InteractionType.COOPERATION, affected_pieces
+            return 'InteractionType.COOPERATION', affected_pieces
             
         # Handle discovered attacks and forks (usually cooperative tactics)
         if opportunities:
             for opp in opportunities:
                 affected_pieces.extend(p.symbol().upper() for p in opp.target_pieces)
             if any(opp.type == 'discovered_attack' for opp in opportunities):
-                return InteractionType.COOPERATION, list(set(affected_pieces))
+                return 'InteractionType.COOPERATION', list(set(affected_pieces))
             if any(opp.type == 'fork' for opp in opportunities):
-                return InteractionType.COMPETITION, list(set(affected_pieces))
+                return 'InteractionType.COMPETITION', list(set(affected_pieces))
             
         # Handle promotions (pawn achieving greatness)
         if context.is_promotion:
             affected_pieces.append(context.promotion_piece_type.upper())
-            return InteractionType.SUPPORT, list(set(affected_pieces))
+            return 'InteractionType.SUPPORT', list(set(affected_pieces))
             
         # Default to support (basic developing/positioning moves)
-        return InteractionType.SUPPORT, list(set(affected_pieces))
+        return 'InteractionType.SUPPORT', list(set(affected_pieces))

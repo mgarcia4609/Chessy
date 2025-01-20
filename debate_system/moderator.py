@@ -1,13 +1,14 @@
 import chess
 from dataclasses import dataclass
-from typing import Dict, List, Protocol, Optional
+from typing import Dict, List, Protocol, Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
-
 from chess_engine.sunfish_wrapper import ChessEngine
 from debate_system.protocols import (
     DebateRound,
     LLMConfig,
+    LLMContext,
     MoveProposal,
+    InteractionObserver,
     PieceInteractionObserver,
     Position,
     GameMoment,
@@ -24,22 +25,45 @@ from piece_agents.base_agent import ChessPieceAgent
 from piece_agents.personality_factory import PersonalityFactory
 from piece_agents.piece_factory import PieceAgentFactory
 
+if TYPE_CHECKING:
+    from chess_engine.sunfish_wrapper import ChessEngine
+    from debate_system.protocols import (
+        DebateRound,
+        LLMConfig,
+        LLMContext,
+        MoveProposal,
+        PieceInteractionObserver,
+        Position,
+        GameMoment,
+        EmotionalState,
+        Interaction,
+        InteractionType,
+        PsychologicalState,
+        GameMemory,
+        RelationshipNetwork,
+        TeamPsychologyObserver
+    )
+    from llm.llm_service import LLMInferenceObserver, LLMService
+    from piece_agents.base_agent import ChessPieceAgent
+    from piece_agents.personality_factory import PersonalityFactory
+    from piece_agents.piece_factory import PieceAgentFactory
+
 
 @dataclass
 class AgentMemento:
     """Captures and restores agent state"""
     personality_state: Dict
-    emotional_state: EmotionalState
-    interaction_history: List[Interaction]
+    emotional_state: 'EmotionalState'
+    interaction_history: List['Interaction']
     timestamp: int
 
 
 class AgentCaretaker:
     """Manages agent state history"""
     def __init__(self):
-        self.history: Dict[str, List[AgentMemento]] = {}  # piece_type -> history
+        self.history: Dict[str, List['AgentMemento']] = {}  # piece_type -> history
         
-    def save_state(self, piece_type: str, agent: ChessPieceAgent, turn: int):
+    def save_state(self, piece_type: str, agent: 'ChessPieceAgent', turn: int):
         """Save agent state at given turn"""
         if piece_type not in self.history:
             self.history[piece_type] = []
@@ -52,7 +76,7 @@ class AgentCaretaker:
         )
         self.history[piece_type].append(memento)
         
-    def restore_state(self, piece_type: str, turn: int) -> Optional[AgentMemento]:
+    def restore_state(self, piece_type: str, turn: int) -> Optional['AgentMemento']:
         """Restore agent state from specific turn"""
         if piece_type not in self.history:
             return None
@@ -65,23 +89,20 @@ class AgentCaretaker:
         return None
 
 
-class InteractionObserver(Protocol):
-    """Protocol for pieces that observe interactions"""
-    def on_game_moment(self, moment: GameMoment): ...
-    def on_relationship_change(self, piece1: str, piece2: str, change: float): ...
 
 
 class InteractionMediator:
     """Manages and coordinates piece interactions"""
     def __init__(self):
-        self._observers: List[InteractionObserver] = []
+        self._observers: List['InteractionObserver'] = []
         self.relationship_network = RelationshipNetwork()
+        self.debate_history: List['LLMContext'] = []
         
-    def register(self, observer: InteractionObserver):
+    def register(self, observer: 'InteractionObserver'):
         """Register an observer for interactions"""
         self._observers.append(observer)
         
-    def notify_moment(self, moment: GameMoment):
+    def notify_moment(self, moment: 'GameMoment'):
         """Notify all observers of a game moment"""
         for observer in self._observers:
             observer.on_game_moment(moment)
@@ -91,7 +112,12 @@ class InteractionMediator:
         for observer in self._observers:
             observer.on_relationship_change(piece1, piece2, change)
             
-    def register_interaction(self, interaction: Interaction):
+    def notify_debate(self, context: 'LLMContext'):
+        """Notify all observers of a debate event"""
+        for observer in self._observers:
+            observer.on_debate_round(context)
+            
+    def register_interaction(self, interaction: 'Interaction'):
         """Record an interaction and update relationships"""
         self.relationship_network.recent_interactions.append(interaction)
         
@@ -102,8 +128,8 @@ class InteractionMediator:
         # Notify observers
         self.notify_relationship(interaction.piece1, interaction.piece2, trust_change)
 
-    def register_opponent_action(self, position: Position, move: str, 
-                               affected_pieces: List[str], interaction_type: InteractionType,
+    def register_opponent_action(self, position: 'Position', move: str, 
+                               affected_pieces: List[str], interaction_type: 'InteractionType',
                                turn: int):
         """Record an opponent's action and its impact on our pieces
         
@@ -162,24 +188,118 @@ class InteractionMediator:
                     interaction_type = interaction_type
                 )
                 self.notify_moment(moment)
+                
+    def register_debate(self, debate_round: 'DebateRound', psychological_state: 'PsychologicalState', game_memory: 'GameMemory'):
+        """Initialize a debate interaction between pieces
+        
+        Args:
+            debate_round: Debate round to register
+        """
+        # Create initial debate context using the rich information we have
+        debate_context = LLMContext(
+            debate_round=debate_round,
+            psychological_state=psychological_state,
+            game_memory=game_memory,
+            interaction_type=InteractionType.DEBATE,
+            debate_history=self.debate_history
+        )
 
+        self.debate_history.append(debate_context)
+        
+        # Notify observers to begin LLM-driven debate
+        self.notify_debate(debate_context)
 
 class DebateStrategy(ABC):
     """Abstract strategy for conducting debates"""
+    def __init__(self, interaction_mediator: Optional['InteractionMediator'] = None):
+        self.interaction_mediator = interaction_mediator
+    
     @abstractmethod
-    def conduct_debate(self, position: Position, pieces: Dict[str, ChessPieceAgent],
-                      moves: List[str]) -> DebateRound: ...
+    def conduct_debate(self, position: 'Position', pieces: Dict[str, 'ChessPieceAgent'],
+                      moves: List[str]) -> 'DebateRound': ...
 
+class LLMDebateStrategy(DebateStrategy):
+    """LLM-driven debate implementation"""
+    def conduct_debate(self, position: 'Position', pieces: Dict[str, 'ChessPieceAgent'],
+                      moves: List[str], psychological_state: 'PsychologicalState', game_memory: 'GameMemory') -> 'DebateRound':
+        """Conduct LLM-driven debate process"""
+        # Generate rich move proposals with analysis and context
+        proposals = self._gather_proposals(position, pieces, moves)
+        
+        # Initialize debate with all our rich context
+        debate = DebateRound(
+            position=position,
+            proposals=proposals,  # Full proposals with analysis, tactical context, etc
+        )
+        
+        # Register debate interaction to trigger LLM processing
+        self.interaction_mediator.register_debate(
+            debate_round=debate,
+            psychological_state=psychological_state,
+            game_memory=game_memory
+        )
+        
+        return debate
+    
+    def _find_piece_agent(self, piece_type: str, square_name: str, pieces: Dict[str, 'ChessPieceAgent']) -> Optional['ChessPieceAgent']:
+        """Find a piece agent by its type and current square.
+        
+        Args:
+            piece_type: Type of piece (e.g., 'N' for knight)
+            square_name: Current square name (e.g., 'f3')
+            pieces: Dictionary of piece agents
+            
+        Returns:
+            The piece agent if found, None otherwise
+        """
+        target_square = chess.parse_square(square_name)
+        
+        # Look for a piece of the right type at the target square
+        for agent in pieces.values():
+            if (agent.board_piece and 
+                agent.board_piece.symbol().upper() == piece_type and 
+                chess.square_name(agent.square) == square_name):
+                return agent
+                
+        return None    
+    
+    def _gather_proposals(self, position: 'Position', pieces: Dict[str, 'ChessPieceAgent'],
+                         moves: List[str]) -> List['MoveProposal']:
+        """Gather move proposals from all pieces that can move"""
+        proposals = []
+        board = chess.Board(position.fen)
+
+        for move_uci in moves:
+            move = chess.Move.from_uci(move_uci)
+            from_square = move.from_square
+
+            piece = board.piece_at(from_square)
+            if not piece or not piece.color == chess.WHITE:
+                print(f"No piece at {from_square}")
+                continue
+                
+            piece_type = piece.symbol().upper()
+            square_name = chess.square_name(from_square)
+            
+            agent = self._find_piece_agent(piece_type, square_name, pieces)
+            agent_id = agent.piece_id
+            if agent:
+                proposal = agent.evaluate_move(position, move_uci, agent_id)
+                if proposal:
+                    proposals.append(proposal)
+        
+        proposals.sort(key=lambda p: p.score, reverse=True)
+        return proposals    
 
 class StandardDebate(DebateStrategy):
     """Standard debate implementation"""
-    def conduct_debate(self, position: Position, pieces: Dict[str, ChessPieceAgent],
-                      moves: List[str]) -> DebateRound:
+    def conduct_debate(self, position: 'Position', pieces: Dict[str, 'ChessPieceAgent'],
+                      moves: List[str]) -> 'DebateRound':
         """Conduct standard debate process"""
         proposals = self._gather_proposals(position, pieces, moves)
         return DebateRound(position=position, proposals=proposals)
         
-    def _find_piece_agent(self, piece_type: str, square_name: str, pieces: Dict[str, ChessPieceAgent]) -> Optional[ChessPieceAgent]:
+    def _find_piece_agent(self, piece_type: str, square_name: str, pieces: Dict[str, 'ChessPieceAgent']) -> Optional['ChessPieceAgent']:
         """Find a piece agent by its type and current square.
         
         Args:
@@ -201,8 +321,8 @@ class StandardDebate(DebateStrategy):
                 
         return None
 
-    def _gather_proposals(self, position: Position, pieces: Dict[str, ChessPieceAgent],
-                         moves: List[str]) -> List[MoveProposal]:
+    def _gather_proposals(self, position: 'Position', pieces: Dict[str, 'ChessPieceAgent'],
+                         moves: List[str]) -> List['MoveProposal']:
         """Gather move proposals from all pieces that can move"""
         proposals = []
         board = chess.Board(position.fen)
@@ -232,11 +352,11 @@ class StandardDebate(DebateStrategy):
 
 class DebateCommand:
     """Command pattern for debate actions"""
-    def __init__(self, moderator: 'DebateModerator', strategy: DebateStrategy):
+    def __init__(self, moderator: 'DebateModerator', strategy: 'DebateStrategy'):
         self.moderator = moderator
         self.strategy = strategy
         
-    def execute(self, position: Position, moves: List[str]) -> DebateRound:
+    def execute(self, position: 'Position', moves: List[str]) -> 'DebateRound':
         """Execute the debate command"""
         return self.strategy.conduct_debate(
             position, self.moderator.pieces, moves)
@@ -245,14 +365,15 @@ class DebateCommand:
 class DebateModerator:
     """Manages the debate process between chess pieces"""
     
-    def __init__(self, pieces: Dict[str, ChessPieceAgent], llm_config: Optional[LLMConfig] = None):
+    def __init__(self, pieces: Dict[str, 'ChessPieceAgent'], llm_config: Optional['LLMConfig'] = None):
         self.interaction_mediator = InteractionMediator()
         self.debate_strategy = StandardDebate()
         self.psychological_state = PsychologicalState()
         self.game_memory = GameMemory()
         self.caretaker = AgentCaretaker()
         self.debate_history: List[DebateRound] = []
-        
+        self.debate_strategy = LLMDebateStrategy(self.interaction_mediator) if llm_config else StandardDebate()
+
         # Initialize pieces
         self.pieces = pieces
         
@@ -281,7 +402,7 @@ class DebateModerator:
             self.interaction_mediator.register(llm_observer)
 
     @classmethod
-    def create_default(cls, engine: ChessEngine, llm_config: Optional[LLMConfig] = None) -> 'DebateModerator':
+    def create_default(cls, engine: 'ChessEngine', llm_config: Optional['LLMConfig'] = None) -> 'DebateModerator':
         """Create a moderator with default pieces"""
         factory = PersonalityFactory()
         personalities = factory.create_all_personalities()
@@ -289,7 +410,7 @@ class DebateModerator:
         return cls(pieces, llm_config)
     
     @classmethod
-    def create_themed(cls, engine: ChessEngine, theme: str, llm_config: Optional[LLMConfig] = None) -> 'DebateModerator':
+    def create_themed(cls, engine: 'ChessEngine', theme: str, llm_config: Optional['LLMConfig'] = None) -> 'DebateModerator':
         """Create a moderator with themed piece personalities"""
         factory = PersonalityFactory()
         personalities = {
@@ -299,7 +420,7 @@ class DebateModerator:
         pieces = PieceAgentFactory.create_all_agents(personalities, engine)
         return cls(pieces, llm_config)
 
-    def conduct_debate(self, position: Position, moves: List[str]) -> DebateRound:
+    def conduct_debate(self, position: 'Position', moves: List[str]) -> 'DebateRound':
         """Conduct a debate round using command pattern"""
         # Update piece positions based on move history
         self.update_piece_positions(position.move_history)
@@ -325,14 +446,18 @@ class DebateModerator:
         
         return debate
     
-    def choose_winning_proposal(self, debate: DebateRound) -> DebateRound:
+    def choose_winning_proposal(self, debate: 'DebateRound') -> 'DebateRound':
         """Assign a winning proposal to a DebateRound object based on highest score for now"""
         if not debate.proposals:
             print("No proposals to choose from")
             return None
-            
-        # Sort proposals by score (highest first)
-        sorted_proposals = sorted(debate.proposals, key=lambda p: p.score, reverse=True)
+        
+        if self.debate_strategy == LLMDebateStrategy:
+            # Sort proposals by score (highest first)
+            sorted_proposals = sorted(debate.proposals, key=lambda p: p.score, reverse=True)
+        else:
+            # Sort proposals by score (highest first)
+            sorted_proposals = sorted(debate.proposals, key=lambda p: p.score, reverse=True)
 
         
         # Select the highest scoring proposal
@@ -346,7 +471,7 @@ class DebateModerator:
         
         return debate
     
-    def select_winning_proposal(self, debate: DebateRound, choice_idx: int) -> MoveProposal:
+    def select_winning_proposal(self, debate: 'DebateRound', choice_idx: int) -> 'MoveProposal':
         """Select a winning proposal and update relationships"""
         if not 0 <= choice_idx < len(debate.proposals):
             raise ValueError(f"Invalid choice index: {choice_idx}")
@@ -374,7 +499,7 @@ class DebateModerator:
         
         return winning_proposal
     
-    def summarize_debate(self, debate: DebateRound) -> str:
+    def summarize_debate(self, debate: 'DebateRound') -> str:
         """Generate a summary of the debate round"""
         summary_parts = []
         

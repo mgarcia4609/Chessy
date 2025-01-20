@@ -1,15 +1,18 @@
 import pytest
 import chess
-from typing import Dict
-
-from chess_engine.sunfish_wrapper import ChessEngine
-from debate_system.moderator import DebateModerator, StandardDebate, DebateRound
+from typing import TYPE_CHECKING
 from debate_system.protocols import (
-    Position, MoveProposal, PersonalityConfig, EmotionalState,
-    Interaction, InteractionType, GameMoment
+    Position, MoveProposal, EmotionalState,
+    Interaction, InteractionType, DebateRound
 )
-from piece_agents.base_agent import ChessPieceAgent
+from chess_engine.sunfish_wrapper import ChessEngine
+from debate_system.moderator import DebateModerator
 from piece_agents.personality_factory import PersonalityFactory
+if TYPE_CHECKING:
+    from chess_engine.sunfish_wrapper import ChessEngine
+    from debate_system.moderator import DebateModerator
+    from piece_agents.personality_factory import PersonalityFactory
+
 
 @pytest.fixture
 def engine():

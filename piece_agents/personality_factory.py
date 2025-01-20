@@ -1,18 +1,19 @@
-from typing import Dict, Optional
-
-from debate_system.protocols import InteractionProfile, PersonalityConfig, PersonalityTemplate, PersonalityTrait
+from typing import Dict, Optional, TYPE_CHECKING
 from .personality_defaults import DEFAULT_TEMPLATES, INTERACTION_PROFILES
+from debate_system.protocols import InteractionProfile, PersonalityConfig, PersonalityTemplate, PersonalityTrait
 
+if TYPE_CHECKING:
+    from debate_system.protocols import InteractionProfile, PersonalityConfig, PersonalityTemplate, PersonalityTrait
 
 class PersonalityFactory:
     """Factory for creating chess piece personalities with rich interaction potential"""
 
-    def __init__(self, templates: Optional[Dict[str, PersonalityTemplate]] = None, interaction_profiles: Optional[Dict[str, InteractionProfile]] = None):
+    def __init__(self, templates: Optional[Dict[str, 'PersonalityTemplate']] = None, interaction_profiles: Optional[Dict[str, 'InteractionProfile']] = None):
         """Initialize the factory with personality templates"""
         self.templates = templates or DEFAULT_TEMPLATES.copy()
         self.interaction_profiles = interaction_profiles or INTERACTION_PROFILES.copy()
 
-    def create_personality(self, piece_type: str, index: int = 0) -> PersonalityConfig:
+    def create_personality(self, piece_type: str, index: int = 0) -> 'PersonalityConfig':
         """Create a personality for a piece with rich interaction potential"""
         if piece_type not in self.templates:
             raise ValueError(f"No personality template for piece type: {piece_type}")
@@ -40,14 +41,14 @@ class PersonalityFactory:
             risk_tolerance=template.risk_tolerance
         )
     
-    def create_all_personalities(self) -> Dict[str, PersonalityConfig]:
+    def create_all_personalities(self) -> Dict[str, 'PersonalityConfig']:
         """Create personalities for all piece types"""
         return {
             piece_type: self.create_personality(piece_type)
             for piece_type in self.templates
         }
     
-    def create_themed_personality(self, piece_type: str, theme: str) -> PersonalityConfig:
+    def create_themed_personality(self, piece_type: str, theme: str) -> 'PersonalityConfig':
         """Create a themed variation of a piece's personality that maintains their core traits"""
         base = self.create_personality(piece_type)
         profile = self.interaction_profiles[piece_type]
